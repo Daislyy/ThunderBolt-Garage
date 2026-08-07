@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -12,11 +12,13 @@ import {
   Wrench,
   PartyPopper,
   MessageSquareText,
+  AlertCircle,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
+import { bookingService, Booking } from '../../services/bookingService';
 
 // ---------------------------------------------------------------------------
-// Types & mock data — ganti dengan fetch dari backend pakai params.id
+// Types & progress stage mapping
 // ---------------------------------------------------------------------------
 
 type Stage = 'checkin' | 'diagnosa' | 'pengerjaan' | 'selesai';
@@ -28,16 +30,29 @@ const STAGES: { key: Stage; label: string; icon: React.ComponentType<any> }[] = 
   { key: 'selesai', label: 'Selesai', icon: PartyPopper },
 ];
 
-const MOCK_BOOKING_DETAIL = {
-  ticketCode: 'TBG-0231',
-  vehicleName: 'Honda Beat',
-  vehiclePlate: 'B 3421 ATR',
-  vehicleType: 'motor' as 'motor' | 'mobil',
-  serviceType: 'Ganti kampas rem',
-  currentStageIndex: 2, // 0=checkin, 1=diagnosa, 2=pengerjaan, 3=selesai
-  estimatedFinish: '15.30 WIB',
-  mechanicNote: 'Ditemukan kebocoran kecil di seal rem belakang, disarankan sekalian diganti.',
-};
+// Map backend status string to progress stage index
+function getStageIndex(status: string): number {
+  const s = status.toLowerCase();
+  if (s === 'selesai' || s === 'finish' || s === 'completed' || s === 'done') return 3;
+  if (s === 'diproses' || s === 'process' || s === 'in_progress' || s === 'dikerjakan') return 2;
+  if (s === 'diagnosa') return 1;
+  return 0; // 'Menunggu' / checked-in
+}
+
+// Detect vehicle type from brand name
+function getVehicleType(brand: string): 'motor' | 'mobil' {
+  const motorBrands = ['honda beat', 'vario', 'scoopy', 'nmax', 'aerox', 'pcx', 'mio', 'jupiter', 'satria', 'cbr', 'ninja', 'r15', 'vespa'];
+  const lowerBrand = brand.toLowerCase();
+  if (motorBrands.some((m) => lowerBrand.includes(m))) return 'motor';
+  // If brand is a typical motorcycle brand
+  const motoManufacturers = ['yamaha', 'kawasaki', 'suzuki', 'tvs', 'piaggio'];
+  if (motoManufacturers.some((m) => lowerBrand.includes(m))) return 'motor';
+  // Honda could be either - check if model contains motorcycle terms
+  if (lowerBrand.includes('honda') && !lowerBrand.includes('civic') && !lowerBrand.includes('jazz') && !lowerBrand.includes('crv') && !lowerBrand.includes('hrv') && !lowerBrand.includes('brv') && !lowerBrand.includes('brio')) {
+    return 'motor';
+  }
+  return 'mobil';
+}
 
 const VEHICLE_ICON = { motor: Bike, mobil: Car };
 
@@ -49,10 +64,89 @@ export default function BookingDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // TODO: fetch booking by id dari Supabase, fallback ke mock buat sekarang
-  const booking = MOCK_BOOKING_DETAIL;
-  const VehicleIcon = VEHICLE_ICON[booking.vehicleType];
-  const isFinished = booking.currentStageIndex >= STAGES.length - 1;
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchBooking = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const data = await bookingService.getBookingById(Number(id));
+        setBooking(data);
+      } catch (err: any) {
+        setError(err.message || 'Gagal memuat detail booking');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchBooking();
+  }, [id]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
+            <ArrowLeft size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Detail servis</Text>
+          <View style={{ width: 36 }} />
+        </View>
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.centerStateText}>Memuat detail...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (error || !booking) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
+            <ArrowLeft size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Detail servis</Text>
+          <View style={{ width: 36 }} />
+        </View>
+        <View style={styles.centerState}>
+          <AlertCircle size={40} color={colors.error} />
+          <Text style={styles.centerStateText}>{error || 'Booking tidak ditemukan'}</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.retryButton} activeOpacity={0.85}>
+            <Text style={styles.retryButtonText}>Kembali</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Build display data from API response
+  const vehicleName = booking.vehicle_brand && booking.vehicle_model
+    ? `${booking.vehicle_brand} ${booking.vehicle_model}`
+    : 'Kendaraan';
+  const vehiclePlate = booking.license_plate || '-';
+  const vehicleType = getVehicleType(vehicleName);
+  const VehicleIcon = VEHICLE_ICON[vehicleType];
+  const currentStageIndex = getStageIndex(booking.status);
+  const isFinished = currentStageIndex >= STAGES.length - 1;
+  const serviceName = booking.service_name || 'Servis';
+
+  // Format booking time for display
+  const formatBookingTime = () => {
+    try {
+      const date = new Date(booking.booking_date);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()} · ${booking.booking_time}`;
+    } catch {
+      return `${booking.booking_date} · ${booking.booking_time}`;
+    }
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right', 'bottom']}>
@@ -72,8 +166,8 @@ export default function BookingDetailScreen() {
             <VehicleIcon size={22} color={colors.primaryDark} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.vehicleName}>{booking.vehicleName}</Text>
-            <Text style={styles.vehiclePlate}>{booking.vehiclePlate} · {booking.ticketCode}</Text>
+            <Text style={styles.vehicleName}>{vehicleName}</Text>
+            <Text style={styles.vehiclePlate}>{vehiclePlate} · {booking.booking_code}</Text>
           </View>
         </View>
 
@@ -82,9 +176,9 @@ export default function BookingDetailScreen() {
           <View style={styles.progressRow}>
             {STAGES.map((stage, index) => {
               const StageIcon = stage.icon;
-              const isDone = index < booking.currentStageIndex;
-              const isActive = index === booking.currentStageIndex;
-              const isUpcoming = index > booking.currentStageIndex;
+              const isDone = index < currentStageIndex;
+              const isActive = index === currentStageIndex;
+              const isUpcoming = index > currentStageIndex;
 
               return (
                 <React.Fragment key={stage.key}>
@@ -117,7 +211,7 @@ export default function BookingDetailScreen() {
                     <View
                       style={[
                         styles.stageConnector,
-                        index < booking.currentStageIndex && styles.stageConnectorDone,
+                        index < currentStageIndex && styles.stageConnectorDone,
                       ]}
                     />
                   )}
@@ -127,30 +221,36 @@ export default function BookingDetailScreen() {
           </View>
         </View>
 
-        {/* ---------- Estimasi selesai ---------- */}
+        {/* ---------- Jadwal booking ---------- */}
         <View style={styles.estimateCard}>
           <View style={styles.estimateIconCircle}>
             <Clock3 size={18} color={colors.textOnPrimary} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.estimateLabel}>
-              {isFinished ? 'Kendaraan sudah selesai' : 'Estimasi selesai'}
+              {isFinished ? 'Kendaraan sudah selesai' : 'Jadwal booking'}
             </Text>
-            <Text style={styles.estimateValue}>{booking.estimatedFinish}</Text>
+            <Text style={styles.estimateValue}>{formatBookingTime()}</Text>
           </View>
         </View>
 
         {/* ---------- Jenis servis ---------- */}
         <View style={styles.infoBlock}>
           <Text style={styles.infoBlockLabel}>Jenis servis</Text>
-          <Text style={styles.infoBlockValue}>{booking.serviceType}</Text>
+          <Text style={styles.infoBlockValue}>{serviceName}</Text>
         </View>
 
-        {/* ---------- Catatan mekanik — cuma muncul kalau ada ---------- */}
-        {booking.mechanicNote ? (
+        {/* ---------- Status ---------- */}
+        <View style={styles.infoBlock}>
+          <Text style={styles.infoBlockLabel}>Status</Text>
+          <Text style={[styles.infoBlockValue, { color: colors.primary }]}>{booking.status}</Text>
+        </View>
+
+        {/* ---------- Catatan — hanya muncul kalau ada ---------- */}
+        {booking.notes ? (
           <View style={styles.noteCard}>
             <MessageSquareText size={16} color={colors.primaryDark} />
-            <Text style={styles.noteText}>{booking.mechanicNote}</Text>
+            <Text style={styles.noteText}>{booking.notes}</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -170,6 +270,31 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+
+  // Center state (loading/error)
+  centerState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 80,
+  },
+  centerStateText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 14,
+    marginTop: 4,
+  },
+  retryButtonText: {
+    color: colors.textOnPrimary,
+    fontWeight: '700',
+    fontSize: 14,
   },
 
   // Top bar
