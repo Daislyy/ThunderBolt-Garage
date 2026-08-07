@@ -78,7 +78,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
             >
               <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', fontStyle: 'italic' }}>
-                Thunder<span style={{ color: '#F97316', fontWeight: 900 }}>Admin</span>
+                Thunder<span style={{ color: '#F97316', fontWeight: 900 }}>Bolt</span>
               </span>
             </motion.div>
           )}

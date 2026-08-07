@@ -1,6 +1,3 @@
-// Script untuk reset password admin
-// Jalankan: node scripts/resetAdmin.js
-
 import bcrypt from 'bcryptjs';
 import db from '../config/database.js';
 import dotenv from 'dotenv';

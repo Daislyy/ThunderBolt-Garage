@@ -14,6 +14,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import BookingStatusBadge from '../components/BookingStatusBadge'
+import BrandLogo from '../components/BrandLogo'
 import api from '../api/axios'
 
 
@@ -415,8 +416,13 @@ export default function DashboardPage() {
                         </code>
                       </td>
                       <td style={{ padding: '0.875rem 1rem' }}>
-                        <p style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.875rem', margin: 0 }}>{post.customer_name}</p>
-                        <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>{post.vehicle_brand} {post.vehicle_model}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                          <BrandLogo brand={post.vehicle_brand} size="0.875rem" containerSize="1.875rem" />
+                          <div>
+                            <p style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.875rem', margin: 0 }}>{post.customer_name}</p>
+                            <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>{post.vehicle_brand} {post.vehicle_model}</p>
+                          </div>
+                        </div>
                       </td>
                       <td style={{ padding: '0.875rem 1rem' }}>
                         <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#F97316' }}>{post.service_name}</span>

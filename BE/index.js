@@ -47,16 +47,24 @@ app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
-// Test database connection on startup
+import { initDb } from './scripts/initDb.js';
+
+// Test database connection and initialize tables on startup
 db.getConnection()
-  .then((conn) => {
-    console.log('Database connected successfully to thunderbolt_db');
+  .then(async (conn) => {
+    console.log(`Database connected successfully to ${process.env.DB_NAME || 'defaultdb'} (${process.env.DB_HOST})`);
     conn.release();
+    try {
+      await initDb();
+    } catch (e) {
+      console.error('Database auto-initialization error:', e.message);
+    }
   })
   .catch((err) => {
-    console.warn('Database connection warning (Make sure MySQL is running and thunderbolt_db exists):', err.message);
+    console.warn('Database connection error:', err.message);
   });
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
+

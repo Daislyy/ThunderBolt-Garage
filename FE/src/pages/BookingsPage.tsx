@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, CalendarCheck, Trash2, RefreshCw, ChevronDown, X, Wrench, Plus, Calendar, Clock } from 'lucide-react'
 import BookingStatusBadge from '../components/BookingStatusBadge'
+import BrandLogo from '../components/BrandLogo'
 import api from '../api/axios'
 
 interface Booking {
@@ -174,8 +175,13 @@ export default function BookingsPage() {
                       <p style={{ fontWeight: 800, color: '#0f172a', margin: 0 }}>{b.customer_name}</p>
                     </td>
                     <td>
-                      <p style={{ fontWeight: 800, color: '#0f172a', margin: 0 }}>{b.vehicle_brand} {b.vehicle_model}</p>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>{b.license_plate}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <BrandLogo brand={b.vehicle_brand} />
+                        <div>
+                          <p style={{ fontWeight: 800, color: '#0f172a', margin: 0 }}>{b.vehicle_brand} {b.vehicle_model}</p>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>{b.license_plate}</span>
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>

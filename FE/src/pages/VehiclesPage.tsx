@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Car, Trash2, Edit2, Plus, RefreshCw, X } from 'lucide-react'
+import BrandLogo from '../components/BrandLogo'
 import api from '../api/axios'
 
 interface Vehicle {
@@ -178,9 +179,7 @@ export default function VehiclesPage() {
                     <td style={{ color: '#94a3b8', fontWeight: 700 }}>#{v.id}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{ width: '2.25rem', height: '2.25rem', borderRadius: '0.75rem', backgroundColor: '#fff7ed', border: '1px solid #ffedd5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F97316' }}>
-                          <Car style={{ width: '1rem', height: '1rem' }} />
-                        </div>
+                        <BrandLogo brand={v.brand} />
                         <div>
                           <p style={{ color: '#0f172a', fontWeight: 800, margin: 0 }}>{v.brand}</p>
                           <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>{v.model}</p>
