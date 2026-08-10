@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Users, Trash2, Edit2, Plus, Shield, User, RefreshCw, X, Camera } from 'lucide-react'
+import { Search, Users, Trash2, Edit2, Plus, Shield, User, RefreshCw, X } from 'lucide-react'
 import api from '../api/axios'
 
 interface UserRow { id: number; name: string; email: string; role: 'admin' | 'customer'; profile_image: string | null; created_at: string }
@@ -22,8 +22,6 @@ export default function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState(initialForm)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
@@ -43,15 +41,12 @@ export default function UsersPage() {
   const updateForm = (key: string, val: any) => setFormData(p => ({ ...p, [key]: val }))
 
   const openModal = (u?: UserRow) => {
-    setSelectedFile(null)
     if (u) {
       setEditingId(u.id)
       setFormData({ name: u.name, email: u.email, password: '', role: u.role })
-      setPreviewUrl(getProfileImageUrl(u.profile_image))
     } else {
       setEditingId(null)
       setFormData(initialForm)
-      setPreviewUrl('')
     }
     setIsModalOpen(true)
   }
@@ -60,21 +55,10 @@ export default function UsersPage() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      let userId = editingId;
       if (editingId) {
         await api.put(`/users/${editingId}`, { name: formData.name, email: formData.email, role: formData.role })
       } else {
-        const resUser = await api.post('/users', { ...formData, password: formData.password || '123456' })
-        userId = resUser.data.data.id;
-      }
-
-      // If user uploaded a new image file, upload it now
-      if (selectedFile && userId) {
-        const uploadData = new FormData();
-        uploadData.append('profile_image', selectedFile);
-        await api.post(`/users/${userId}/profile-image`, uploadData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        await api.post('/users', { ...formData, password: formData.password || '123456' })
       }
 
       setIsModalOpen(false)
@@ -251,31 +235,6 @@ export default function UsersPage() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '1rem', border: '1px dashed #cbd5e1' }}>
-                  <div style={{ width: '4rem', height: '4rem', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
-                    {previewUrl ? (
-                      <img src={previewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <Camera style={{ width: '1.5rem', height: '1.5rem', color: '#94a3b8' }} />
-                    )}
-                  </div>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Foto Profil</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setSelectedFile(file);
-                          setPreviewUrl(URL.createObjectURL(file));
-                        }
-                      }}
-                      style={{ fontSize: '0.75rem', color: '#64748b' }}
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Peranan (Role)</label>
                   <select className="klesi-select" value={formData.role} onChange={e => updateForm('role', e.target.value)}>
@@ -298,4 +257,5 @@ export default function UsersPage() {
     </div>
   )
 }
+
 
