@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, CalendarCheck, Trash2, RefreshCw, ChevronDown, X, Wrench, Plus, Calendar, Clock } from 'lucide-react'
+import { Search, CalendarCheck, Trash2, RefreshCw, ChevronDown, X, Wrench, Plus, Calendar, Clock, FileSpreadsheet } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import BookingStatusBadge from '../components/BookingStatusBadge'
 import BrandLogo from '../components/BrandLogo'
 import api from '../api/axios'
@@ -64,6 +65,51 @@ export default function BookingsPage() {
     return matchQ && (statusFilter === 'all' || b.status === statusFilter)
   })
 
+  const handleExportExcel = () => {
+    if (filtered.length === 0) {
+      alert('Tidak ada data booking untuk diexport.')
+      return
+    }
+
+    const exportData = filtered.map((b, index) => ({
+      'No': index + 1,
+      'Kode Booking': b.booking_code,
+      'Nama Pelanggan': b.customer_name,
+      'Email Pelanggan': b.customer_email || '-',
+      'Merek Kendaraan': b.vehicle_brand,
+      'Model Kendaraan': b.vehicle_model,
+      'Nomor Plat': b.license_plate,
+      'Layanan': b.service_name,
+      'Tanggal Booking': b.booking_date ? new Date(b.booking_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-',
+      'Waktu': b.booking_time ? `${b.booking_time.slice(0, 5)} WIB` : '-',
+      'Status': b.status,
+      'Catatan / Keluhan': b.notes || '-'
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    
+    worksheet['!cols'] = [
+      { wch: 6 },   // No
+      { wch: 16 },  // Kode Booking
+      { wch: 24 },  // Nama Pelanggan
+      { wch: 28 },  // Email Pelanggan
+      { wch: 18 },  // Merek Kendaraan
+      { wch: 18 },  // Model Kendaraan
+      { wch: 14 },  // Nomor Plat
+      { wch: 22 },  // Layanan
+      { wch: 20 },  // Tanggal Booking
+      { wch: 12 },  // Waktu
+      { wch: 14 },  // Status
+      { wch: 32 }   // Catatan
+    ]
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Booking')
+
+    const todayStr = new Date().toISOString().slice(0, 10)
+    XLSX.writeFile(workbook, `Data_Booking_Thunderbolt_${todayStr}.xlsx`)
+  }
+
 
   const userVehicles = allVehicles.filter(v => v.user_id === addForm.user_id)
   const updateAdd = (key: string, val: any) => setAddForm(p => ({ ...p, [key]: val }))
@@ -111,8 +157,11 @@ export default function BookingsPage() {
           <h1 style={{ fontSize: '1.875rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', margin: 0 }}>Kelola Booking</h1>
           <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#64748b', margin: '0.25rem 0 0 0' }}>Pemesanan servis, penjadwalan, dan kontrol status pengerjaan</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button className="klesi-btn-ghost" onClick={fetchAll}><RefreshCw style={{ width: '1rem', height: '1rem' }} /> Refresh</button>
+          <button className="klesi-btn-excel" onClick={handleExportExcel} title="Export data booking ke format Excel (.xlsx)">
+            <FileSpreadsheet style={{ width: '1rem', height: '1rem' }} /> Export Excel
+          </button>
           <button className="klesi-btn-primary" onClick={openAddModal}><Plus style={{ width: '1.125rem', height: '1.125rem' }} /> Buat Booking</button>
         </div>
       </motion.div>

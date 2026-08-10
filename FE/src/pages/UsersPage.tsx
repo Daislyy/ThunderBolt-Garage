@@ -72,7 +72,7 @@ export default function UsersPage() {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button className="klesi-btn-ghost" onClick={fetchUsers}><RefreshCw style={{ width: '1rem', height: '1rem' }} /> Refresh</button>
-          <button className="klesi-btn-primary" onClick={() => openModal()}><Plus style={{ width: '1.125rem', height: '1.125rem' }} /> Tambah Pelanggan</button>
+          <button className="klesi-btn-primary" onClick={() => openModal()}><Plus style={{ width: '1.125rem', height: '1.125rem' }} /> Tambah User</button>
         </div>
       </motion.div>
 
