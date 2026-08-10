@@ -161,9 +161,22 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
               fontWeight: 900,
               fontSize: '0.875rem',
               boxShadow: '0 10px 15px -3px rgba(15, 23, 42, 0.15)',
+              overflow: 'hidden'
             }}
           >
-            {user?.name?.charAt(0).toUpperCase() || 'A'}
+            {user?.profile_image ? (
+              <img 
+                src={
+                  user.profile_image.startsWith('http') || user.profile_image.startsWith('data:') 
+                    ? user.profile_image 
+                    : `http://localhost:5000${user.profile_image}`
+                } 
+                alt={user.name} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+            ) : (
+              user?.name?.charAt(0).toUpperCase() || 'A'
+            )}
           </div>
         </div>
       </div>

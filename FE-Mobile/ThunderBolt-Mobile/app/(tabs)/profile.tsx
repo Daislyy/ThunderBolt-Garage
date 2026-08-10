@@ -34,13 +34,24 @@ import {
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
+import { authService } from '../../services/authService';
+import { BASE_URL } from '../../services/api';
+
+// Helper to get full image URL from backend path
+const getProfileImageUrl = (profileImage: string | null | undefined): string | null => {
+  if (!profileImage) return null;
+  if (profileImage.startsWith('http')) return profileImage;
+  // Convert /uploads/profiles/xxx.jpg → http://host:5000/uploads/profiles/xxx.jpg
+  const baseHost = BASE_URL.replace('/api', '');
+  return `${baseHost}${profileImage}`;
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, refreshUser } = useAuth();
 
   // Avatar state (defaults to user.profile_image if available)
-  const [avatarUri, setAvatarUri] = useState<string | null>(user?.profile_image || null);
+  const [avatarUri, setAvatarUri] = useState<string | null>(getProfileImageUrl(user?.profile_image));
 
   // Edit Profile Modal State
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -61,16 +72,22 @@ export default function ProfileScreen() {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.85,
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedUri = result.assets[0].uri;
-        setAvatarUri(selectedUri);
-        Alert.alert('Berhasil! 🎉', 'Foto profil berhasil diperbarui dari Galeri.');
+
+        if (user?.id) {
+          const uploadedPath = await authService.uploadProfileImage(user.id, selectedUri);
+          const fullUrl = getProfileImageUrl(uploadedPath);
+          setAvatarUri(fullUrl);
+          await refreshUser();
+        }
+        Alert.alert('Berhasil! 🎉', 'Foto profil berhasil diperbarui.');
       }
     } catch (error: any) {
-      Alert.alert('Gagal Membuka Galeri', error.message || 'Terjadi kesalahan saat membuka galeri foto.');
+      Alert.alert('Gagal', error.message || 'Terjadi kesalahan saat mengunggah foto.');
     }
   };
 
@@ -86,16 +103,22 @@ export default function ProfileScreen() {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.85,
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedUri = result.assets[0].uri;
-        setAvatarUri(selectedUri);
+
+        if (user?.id) {
+          const uploadedPath = await authService.uploadProfileImage(user.id, selectedUri);
+          const fullUrl = getProfileImageUrl(uploadedPath);
+          setAvatarUri(fullUrl);
+          await refreshUser();
+        }
         Alert.alert('Berhasil! 🎉', 'Foto profil berhasil diambil dari Kamera.');
       }
     } catch (error: any) {
-      Alert.alert('Gagal Mengambil Foto', error.message || 'Terjadi kesalahan saat membuka kamera.');
+      Alert.alert('Gagal', error.message || 'Terjadi kesalahan saat mengambil foto.');
     }
   };
 
@@ -136,12 +159,17 @@ export default function ProfileScreen() {
     }
     setIsSaving(true);
     try {
+      if (user?.id) {
+        await authService.updateProfile(user.id, {
+          name: editName,
+          email: editEmail,
+        });
+      }
       await refreshUser();
       setIsEditModalVisible(false);
       Alert.alert('Berhasil', 'Profil Anda telah diperbarui!');
-    } catch {
-      Alert.alert('Informasi', 'Perubahan profil berhasil disimpan.');
-      setIsEditModalVisible(false);
+    } catch (err: any) {
+      Alert.alert('Gagal', err.message || 'Gagal menyimpan perubahan profil.');
     } finally {
       setIsSaving(false);
     }
