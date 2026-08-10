@@ -29,6 +29,14 @@ export const colors = {
   statusFinish: '#7A3204',    // oren gelap = selesai
 
   overlay: 'rgba(36, 18, 7, 0.45)',
+
+  // UI Mockup specific colors
+  categoryBg: '#FFF1EC',
+  bannerBg: '#F8F9FA',
+  headingDark: '#1E293B',
+  subtextGray: '#64748B',
+  ratingStar: '#FF9500',
+  borderOrange: 'rgba(255, 106, 0, 0.35)',
 } as const;
 
 export type AppColors = typeof colors;

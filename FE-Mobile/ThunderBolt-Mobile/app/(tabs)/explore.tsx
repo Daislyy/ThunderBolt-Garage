@@ -1,33 +1,24 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Clock3, Loader2, CheckCircle2, Wrench } from 'lucide-react-native';
+import { Clock3, Loader2, CheckCircle2, Wrench, RefreshCw, Plus } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
+import { useAuth } from '../../contexts/AuthContext';
+import { bookingService, Booking } from '../../services/bookingService';
 
 type BookingStatus = 'pending' | 'process' | 'finish';
 
-interface Booking {
-  id: string;
-  ticketCode: string;
-  service: string;
-  vehicle: string;
-  date: string;
-  status: BookingStatus;
+// Map backend status to UI status
+function mapStatus(backendStatus: string): BookingStatus {
+  const s = backendStatus.toLowerCase();
+  if (s === 'selesai' || s === 'finish' || s === 'completed' || s === 'done') return 'finish';
+  if (s === 'diproses' || s === 'process' || s === 'in_progress' || s === 'dikerjakan') return 'process';
+  return 'pending'; // 'Menunggu' or anything else
 }
 
-// ---------------------------------------------------------------------------
-// Mock data — nanti ganti fetch dari Supabase, filter by user_id yang login
-// ---------------------------------------------------------------------------
-
-const MOCK_BOOKINGS: Booking[] = [
-  { id: '1', ticketCode: 'TBG-0231', service: 'Ganti kampas rem', vehicle: 'Honda Beat', date: '24 Jul 2026', status: 'process' },
-  { id: '2', ticketCode: 'TBG-0228', service: 'Servis rutin', vehicle: 'Toyota Avanza', date: '22 Jul 2026', status: 'pending' },
-  { id: '3', ticketCode: 'TBG-0219', service: 'Ganti oli + filter', vehicle: 'Honda Beat', date: '15 Jul 2026', status: 'finish' },
-];
-
 const STATUS_LABEL: Record<BookingStatus, string> = {
-  pending: 'Pending',
+  pending: 'Menunggu',
   process: 'Diproses',
   finish: 'Selesai',
 };
@@ -44,15 +35,55 @@ const STATUS_ICON: Record<BookingStatus, React.ComponentType<any>> = {
   finish: CheckCircle2,
 };
 
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
+// Format date from ISO string to readable
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function ServisScreen() {
   const router = useRouter();
+  const { user } = useAuth();
 
-  const activeBookings = MOCK_BOOKINGS.filter((b) => b.status !== 'finish');
-  const finishedBookings = MOCK_BOOKINGS.filter((b) => b.status === 'finish');
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchBookings = useCallback(async (showRefresh = false) => {
+    if (!user) return;
+    
+    if (showRefresh) setIsRefreshing(true);
+    else setIsLoading(true);
+    
+    setError(null);
+
+    try {
+      const data = await bookingService.getBookingsByUser(user.id);
+      setBookings(data);
+    } catch (err: any) {
+      setError(err.message || 'Gagal memuat booking');
+      console.log('Fetch bookings error:', err.message);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [user]);
+
+  // Refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+    }, [fetchBookings])
+  );
+
+  const activeBookings = bookings.filter((b) => mapStatus(b.status) !== 'finish');
+  const finishedBookings = bookings.filter((b) => mapStatus(b.status) === 'finish');
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
@@ -62,35 +93,84 @@ export default function ServisScreen() {
           <View style={styles.headerIconCircle}>
             <Wrench size={20} color={colors.textOnPrimary} />
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Servis kamu</Text>
             <Text style={styles.headerSubtitle}>Semua booking &amp; riwayat servis</Text>
           </View>
+
+          <TouchableOpacity
+            onPress={() => router.push('/booking/create' as any)}
+            style={styles.addBookingHeaderBtn}
+            activeOpacity={0.85}
+          >
+            <Plus size={16} color={colors.textOnPrimary} />
+            <Text style={styles.addBookingHeaderBtnText}>Booking</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => fetchBookings(true)}
+            style={styles.refreshButton}
+            activeOpacity={0.7}
+          >
+            <RefreshCw
+              size={18}
+              color={colors.primary}
+              style={isRefreshing ? { opacity: 0.5 } : undefined}
+            />
+          </TouchableOpacity>
         </View>
 
+        {/* ---------- Loading ---------- */}
+        {isLoading && (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Memuat booking...</Text>
+          </View>
+        )}
+
+        {/* ---------- Error ---------- */}
+        {error && !isLoading && (
+          <View style={styles.errorState}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              onPress={() => fetchBookings()}
+              style={styles.retryButton}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.retryButtonText}>Coba Lagi</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ---------- Booking aktif ---------- */}
-        {activeBookings.length > 0 && (
+        {!isLoading && activeBookings.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionHeading}>Sedang berjalan</Text>
             {activeBookings.map((booking) => {
-              const StatusIcon = STATUS_ICON[booking.status];
+              const uiStatus = mapStatus(booking.status);
+              const StatusIcon = STATUS_ICON[uiStatus];
+              const vehicleLabel = booking.vehicle_brand && booking.vehicle_model
+                ? `${booking.vehicle_brand} ${booking.vehicle_model}`
+                : 'Kendaraan';
+              const serviceName = booking.service_name || 'Servis';
+
               return (
                 <TouchableOpacity
                   key={booking.id}
                   style={styles.ticketCard}
-                  onPress={() => router.push({ pathname: '/booking/[id]', params: { id: booking.id } })}
+                  onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking.id) } })}
                   activeOpacity={0.85}
                 >
                   <View style={styles.ticketAccentBar} />
                   <View style={styles.ticketLeft}>
-                    <Text style={styles.ticketCode}>{booking.ticketCode}</Text>
-                    <Text style={styles.ticketService}>{booking.service}</Text>
-                    <Text style={styles.ticketMeta}>{booking.vehicle} · {booking.date}</Text>
+                    <Text style={styles.ticketCode}>{booking.booking_code}</Text>
+                    <Text style={styles.ticketService}>{serviceName}</Text>
+                    <Text style={styles.ticketMeta}>{vehicleLabel} · {formatDate(booking.booking_date)}</Text>
                   </View>
-                  <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLOR[booking.status]}22` }]}>
-                    <StatusIcon size={12} color={STATUS_COLOR[booking.status]} />
-                    <Text style={[styles.statusText, { color: STATUS_COLOR[booking.status] }]}>
-                      {STATUS_LABEL[booking.status]}
+                  <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLOR[uiStatus]}22` }]}>
+                    <StatusIcon size={12} color={STATUS_COLOR[uiStatus]} />
+                    <Text style={[styles.statusText, { color: STATUS_COLOR[uiStatus] }]}>
+                      {STATUS_LABEL[uiStatus]}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -100,28 +180,34 @@ export default function ServisScreen() {
         )}
 
         {/* ---------- Riwayat selesai ---------- */}
-        {finishedBookings.length > 0 && (
+        {!isLoading && finishedBookings.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionHeading}>Riwayat</Text>
             {finishedBookings.map((booking) => {
-              const StatusIcon = STATUS_ICON[booking.status];
+              const uiStatus = mapStatus(booking.status);
+              const StatusIcon = STATUS_ICON[uiStatus];
+              const vehicleLabel = booking.vehicle_brand && booking.vehicle_model
+                ? `${booking.vehicle_brand} ${booking.vehicle_model}`
+                : 'Kendaraan';
+              const serviceName = booking.service_name || 'Servis';
+
               return (
                 <TouchableOpacity
                   key={booking.id}
                   style={styles.ticketCard}
-                  onPress={() => router.push({ pathname: '/booking/[id]', params: { id: booking.id } })}
+                  onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking.id) } })}
                   activeOpacity={0.85}
                 >
                   <View style={styles.ticketAccentBar} />
                   <View style={styles.ticketLeft}>
-                    <Text style={styles.ticketCode}>{booking.ticketCode}</Text>
-                    <Text style={styles.ticketService}>{booking.service}</Text>
-                    <Text style={styles.ticketMeta}>{booking.vehicle} · {booking.date}</Text>
+                    <Text style={styles.ticketCode}>{booking.booking_code}</Text>
+                    <Text style={styles.ticketService}>{serviceName}</Text>
+                    <Text style={styles.ticketMeta}>{vehicleLabel} · {formatDate(booking.booking_date)}</Text>
                   </View>
-                  <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLOR[booking.status]}22` }]}>
-                    <StatusIcon size={12} color={STATUS_COLOR[booking.status]} />
-                    <Text style={[styles.statusText, { color: STATUS_COLOR[booking.status] }]}>
-                      {STATUS_LABEL[booking.status]}
+                  <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLOR[uiStatus]}22` }]}>
+                    <StatusIcon size={12} color={STATUS_COLOR[uiStatus]} />
+                    <Text style={[styles.statusText, { color: STATUS_COLOR[uiStatus] }]}>
+                      {STATUS_LABEL[uiStatus]}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -130,9 +216,19 @@ export default function ServisScreen() {
           </View>
         )}
 
-        {MOCK_BOOKINGS.length === 0 && (
+        {!isLoading && !error && bookings.length === 0 && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>Belum ada booking servis</Text>
+            <Text style={styles.emptyStateEmoji}>🔧</Text>
+            <Text style={styles.emptyStateTitle}>Belum ada booking servis</Text>
+            <Text style={styles.emptyStateText}>Buat booking servis pertamamu sekarang!</Text>
+            <TouchableOpacity
+              style={styles.emptyStateBtn}
+              activeOpacity={0.88}
+              onPress={() => router.push('/booking/create' as any)}
+            >
+              <Plus size={16} color={colors.textOnPrimary} />
+              <Text style={styles.emptyStateBtnText}>Buat Booking Sekarang</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -157,7 +253,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     marginTop: 16,
     marginBottom: 8,
   },
@@ -178,6 +274,28 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12.5,
     marginTop: 2,
+  },
+  addBookingHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  addBookingHeaderBtnText: {
+    color: colors.textOnPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  refreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   section: {
@@ -247,12 +365,68 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  /* Loading, error, empty */
+  loadingState: {
+    marginTop: 60,
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  errorState: {
+    marginTop: 40,
+    alignItems: 'center',
+    gap: 12,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  retryButtonText: {
+    color: colors.textOnPrimary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
   emptyState: {
     marginTop: 60,
     alignItems: 'center',
+    gap: 6,
+  },
+  emptyStateEmoji: {
+    fontSize: 40,
+    marginBottom: 4,
+  },
+  emptyStateTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
   },
   emptyStateText: {
     color: colors.textSecondary,
     fontSize: 13,
+    marginBottom: 12,
+  },
+  emptyStateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  emptyStateBtnText: {
+    color: colors.textOnPrimary,
+    fontSize: 13.5,
+    fontWeight: '700',
   },
 });

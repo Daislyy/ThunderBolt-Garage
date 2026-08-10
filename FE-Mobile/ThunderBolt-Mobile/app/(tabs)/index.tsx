@@ -1,361 +1,481 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
   Image,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   FlatList,
   Dimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  Menu,
+  MapPin,
+  Search,
   Wrench,
-  ChevronRight,
-  Clock3,
-  Loader2,
-  CheckCircle2,
-  Bike,
-  Car,
-  CalendarClock,
+  Disc,
+  ShieldCheck,
+  Droplet,
+  Star,
+  LogOut,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
+import { StoreDetailModal, StoreBranch } from '../../components/store-detail-modal';
+import { useAuth } from '../../contexts/AuthContext';
+import { serviceService, Service } from '../../services/serviceService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_GAP = 12;
-const AD_WIDTH = SCREEN_WIDTH - 56;
-const VEHICLE_WIDTH = SCREEN_WIDTH - 60;
+const BANNER_WIDTH = SCREEN_WIDTH - 40;
+const STORE_CARD_WIDTH = SCREEN_WIDTH * 0.58;
 
-type BookingStatus = 'pending' | 'process' | 'finish';
-type VehicleType = 'motor' | 'mobil';
-
-interface Booking {
+interface BannerItem {
   id: string;
-  ticketCode: string;
-  service: string;
-  vehicle: string;
-  date: string;
-  status: BookingStatus;
-}
-
-interface Ad {
-  id: string;
+  tag: string;
   title: string;
-  subtitle: string;
-  color: string;
+  imageUrl: string;
+  buttonText: string;
 }
 
-interface Vehicle {
+interface CategoryItem {
   id: string;
-  type: VehicleType;
   name: string;
-  plate: string;
-  lastService: string;
-  lastServiceType: string;
-  nextServiceEstimate: string;
-  dueSoon: boolean;
+  icon: React.ComponentType<any>;
 }
 
-// ---------------------------------------------------------------------------
-// Mock data — ganti dengan fetch dari backend
-// ---------------------------------------------------------------------------
-
-const MOCK_USER = {
-  name: 'Attar Ramadhan',
-  avatarInitials: 'AR',
-  points: 1250,
-  memberTier: 'Gold Member',
-};
-
-const MOCK_QUEUE = {
-  position: 3,
-  totalWaiting: 7,
-  estimatedWaitMinutes: 40,
-};
-
-const MOCK_ADS: Ad[] = [
-  { id: '1', title: 'Diskon ganti oli 20%', subtitle: 'Berlaku sampai akhir bulan', color: colors.primary },
-  { id: '2', title: 'Servis AC mobil', subtitle: 'Gratis cek freon', color: colors.primaryDark },
-  { id: '3', title: 'Member baru dapat 500 poin', subtitle: 'Daftar sekarang', color: colors.primaryLight },
-];
-
-const MOCK_VEHICLES: Vehicle[] = [
+const PROMO_BANNERS: BannerItem[] = [
   {
     id: '1',
-    type: 'motor',
-    name: 'Yamaha Aerox',
-    plate: 'B 1234 ATR',
-    lastService: '15 Jul 2026',
-    lastServiceType: 'Ganti oli',
-    nextServiceEstimate: '~2 minggu lagi',
-    dueSoon: true,
+    tag: '30% sale off',
+    title: 'Replacement\ncar parts',
+    imageUrl: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=600&auto=format&fit=crop',
+    buttonText: 'Shop Now',
   },
   {
     id: '2',
-    type: 'mobil',
-    name: 'Toyota Avanza',
-    plate: 'B 1187 XYZ',
-    lastService: '22 Jul 2026',
-    lastServiceType: 'Servis rutin',
-    nextServiceEstimate: '~1.5 bulan lagi',
-    dueSoon: false,
+    tag: 'Special Offer',
+    title: 'Complete Brake\nSystem Kit',
+    imageUrl: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?q=80&w=600&auto=format&fit=crop',
+    buttonText: 'Shop Now',
+  },
+  {
+    id: '3',
+    tag: 'Free Inspection',
+    title: 'Full Engine\nDiagnostic Test',
+    imageUrl: 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?q=80&w=600&auto=format&fit=crop',
+    buttonText: 'Claim Now',
   },
 ];
 
-const MOCK_BOOKINGS: Booking[] = [
-  { id: '1', ticketCode: 'TBG-0231', service: 'Ganti kampas rem', vehicle: 'Honda Beat', date: '24 Jul 2026', status: 'process' },
-  { id: '2', ticketCode: 'TBG-0228', service: 'Servis rutin', vehicle: 'Toyota Avanza', date: '22 Jul 2026', status: 'pending' },
-  { id: '3', ticketCode: 'TBG-0219', service: 'Ganti oli + filter', vehicle: 'Honda Beat', date: '15 Jul 2026', status: 'finish' },
+const CATEGORY_ICONS: Record<string, React.ComponentType<any>> = {
+  'Repairs': Wrench,
+  'Spare Parts': Disc,
+  'Services': ShieldCheck,
+  'Oil & Fluids': Droplet,
+};
+
+const DEFAULT_CATEGORIES: CategoryItem[] = [
+  { id: 'repairs', name: 'Repairs', icon: Wrench },
+  { id: 'parts', name: 'Spare Parts', icon: Disc },
+  { id: 'services', name: 'Services', icon: ShieldCheck },
+  { id: 'oil', name: 'Oil & Fluids', icon: Droplet },
 ];
 
-const STATUS_LABEL: Record<BookingStatus, string> = {
-  pending: 'Pending',
-  process: 'Diproses',
-  finish: 'Selesai',
-};
-
-const STATUS_COLOR: Record<BookingStatus, string> = {
-  pending: colors.statusPending,
-  process: colors.statusProcess,
-  finish: colors.statusFinish,
-};
-
-const STATUS_ICON: Record<BookingStatus, React.ComponentType<any>> = {
-  pending: Clock3,
-  process: Loader2,
-  finish: CheckCircle2,
-};
-
-const VEHICLE_ICON: Record<VehicleType, React.ComponentType<any>> = {
-  motor: Bike,
-  mobil: Car,
-};
-
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
+const NEARBY_STORES: StoreBranch[] = [
+  {
+    id: '1',
+    name: 'ThunderBolt Garage Jakarta',
+    branchTitle: 'Cabang Senayan · Spesialis Rem & Kaki-Kaki',
+    category: 'Service & Repairs',
+    rating: 3.5,
+    reviewCount: 86,
+    address: 'Jl. Medan, Jakarta, 14391',
+    distance: '1.4 km',
+    openHours: '08:00 - 17:00 WIB',
+    isOpen: true,
+    phone: '+62 812-3456-7890',
+    imageUrl: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?q=80&w=600&auto=format&fit=crop',
+    services: [
+      { id: 's1', name: 'Ganti Kampas Rem', category: 'Rem', duration: '30 Menit', price: 'Rp 120.000', popular: true },
+      { id: 's2', name: 'Servis Kaki-Kaki & Shock', category: 'Suspensi', duration: '60 Menit', price: 'Rp 250.000' },
+      { id: 's3', name: 'Ganti Oli & Filter Oil', category: 'Oli', duration: '25 Menit', price: 'Rp 95.000' },
+    ],
+  },
+  {
+    id: '2',
+    name: 'ThunderBolt Garage Depok',
+    branchTitle: 'Cabang Kelapa Gading · Bengkel Resmi Partner',
+    category: 'Service & Repairs',
+    rating: 5.0,
+    reviewCount: 194,
+    address: 'Jl. Margonda, Depok, 16424',
+    distance: '2.8 km',
+    openHours: '08:30 - 18:00 WIB',
+    isOpen: true,
+    phone: '+62 813-9876-5432',
+    imageUrl: 'https://images.unsplash.com/photo-1530046339160-ce3e530c7d2f?q=80&w=600&auto=format&fit=crop',
+    services: [
+      { id: 's4', name: 'Servis Berkala Full System', category: 'General', duration: '90 Menit', price: 'Rp 350.000', popular: true },
+      { id: 's5', name: 'Cleaning Injektor & Throttle', category: 'Engine', duration: '45 Menit', price: 'Rp 180.000' },
+      { id: 's6', name: 'Spooring & Balancing 3D', category: 'Roda', duration: '40 Menit', price: 'Rp 160.000' },
+    ],
+  },
+  {
+    id: '3',
+    name: 'ThunderBolt Garage Jakarta',
+    branchTitle: 'Cabang Kebayoran Baru · Flagship Service Center',
+    category: 'Spare Parts & Service',
+    rating: 4.9,
+    reviewCount: 312,
+    address: 'Jl. Radio Dalam No. 45, Kebayoran Baru, Jakarta Selatan',
+    distance: '1.2 km',
+    openHours: '08:00 - 20:00 WIB',
+    isOpen: true,
+    phone: '+62 811-7788-9900',
+    imageUrl: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?q=80&w=600&auto=format&fit=crop',
+    services: [
+      { id: 's7', name: 'Servis Rutin ThunderBolt Gold', category: 'Premium', duration: '60 Menit', price: 'Rp 299.000', popular: true },
+      { id: 's8', name: 'Ganti Oli Synthetic Engine', category: 'Oli', duration: '30 Menit', price: 'Rp 175.000', popular: true },
+      { id: 's9', name: 'Diagnosis Komputer ECU Scanner', category: 'Elektrikal', duration: '35 Menit', price: 'Rp 150.000' },
+      { id: 's10', name: 'Overhaul & Tune Up Mesin', category: 'Engine', duration: '120 Menit', price: 'Rp 500.000' },
+    ],
+  },
+];
 
 export default function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [activeAdIndex, setActiveAdIndex] = useState(0);
-  const [activeVehicleIndex, setActiveVehicleIndex] = useState(0);
-  const adListRef = useRef<FlatList<Ad>>(null);
-  const vehicleListRef = useRef<FlatList<Vehicle>>(null);
+  const { user, logout } = useAuth();
 
-  const handleAdScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / (AD_WIDTH + CARD_GAP));
-    setActiveAdIndex(index);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // API data
+  const [apiServices, setApiServices] = useState<Service[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+
+  // Store branch detail modal state
+  const [selectedStore, setSelectedStore] = useState<StoreBranch | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  const bannerListRef = useRef<FlatList<BannerItem>>(null);
+
+  // Fetch services from API
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const services = await serviceService.getAllServices();
+        setApiServices(services);
+      } catch (error) {
+        console.log('Failed to fetch services, using defaults');
+      } finally {
+        setServicesLoading(false);
+      }
+    };
+    fetchServices();
+  }, []);
+
+  const handleBannerScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / BANNER_WIDTH);
+    setActiveBannerIndex(index);
   };
 
-  const handleVehicleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / (VEHICLE_WIDTH + CARD_GAP));
-    setActiveVehicleIndex(index);
+  const handleOpenStoreModal = (store: StoreBranch) => {
+    setSelectedStore(store);
+    setIsModalVisible(true);
+  };
+
+  const handleCloseStoreModal = () => {
+    setIsModalVisible(false);
+    setSelectedStore(null);
+  };
+
+  const handleSelectBookingFromStore = (store: StoreBranch) => {
+    setIsModalVisible(false);
+    router.push({
+      pathname: '/booking/create' as any,
+      params: { storeId: store.id, storeName: store.name, address: store.address },
+    });
+  };
+
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['left', 'right', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* ---------- Hero: full-bleed oren, profil + poin dalam satu row ---------- */}
-        <View style={[styles.hero, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity style={styles.heroTopRow} onPress={() => router.push('/profile' as any)} activeOpacity={0.8}>
-            <View style={styles.profileRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{MOCK_USER.avatarInitials}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.greeting}>Halo, {MOCK_USER.name.split(' ')[0]}</Text>
-                <Text style={styles.memberTier}>{MOCK_USER.memberTier}</Text>
-              </View>
-            </View>
-
-            <View style={styles.pointsBadge}>
-              <Text style={styles.pointsValue}>{MOCK_USER.points.toLocaleString('id-ID')}</Text>
-              <Text style={styles.pointsLabel}>poin</Text>
-            </View>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top Header Row */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
+            <Menu size={24} color={colors.headingDark} />
           </TouchableOpacity>
 
-          {/* aksen dekoratif biar hero ga flat */}
-          <View style={styles.heroDecoCircleLarge} />
-          <View style={styles.heroDecoCircleSmall} />
-        </View>
-
-        {/* ---------- Ads carousel — overlap ke hero ---------- */}
-        <FlatList
-          ref={adListRef}
-          data={MOCK_ADS}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={AD_WIDTH + CARD_GAP}
-          decelerationRate="fast"
-          contentContainerStyle={{ paddingHorizontal: 20, gap: CARD_GAP }}
-          onScroll={handleAdScroll}
-          scrollEventThrottle={16}
-          style={styles.adList}
-          renderItem={({ item }) => (
-            <View style={[styles.adCard, { backgroundColor: item.color, width: AD_WIDTH }]}>
-              <View style={styles.adDecoCircle} />
-              <Text style={styles.adTitle}>{item.title}</Text>
-              <Text style={styles.adSubtitle}>{item.subtitle}</Text>
-            </View>
-          )}
-        />
-        <View style={styles.dotsRow}>
-          {MOCK_ADS.map((_, i) => (
-            <View key={i} style={[styles.dot, i === activeAdIndex && styles.dotActive]} />
-          ))}
-        </View>
-
-        {/* ---------- Quick stats: antrian ---------- */}
-        <View style={[styles.sectionPadding, styles.statsRow]}>
-          <View style={[styles.statCard, styles.statCardWide]}>
-            <View style={styles.statIconCircle}>
-              <Clock3 size={18} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.statLabel}>Antrian hari ini</Text>
-              <Text style={styles.statSubtitle}>
-                Posisi #{MOCK_QUEUE.position} dari {MOCK_QUEUE.totalWaiting}
-              </Text>
-            </View>
-            <View style={styles.statHighlight}>
-              <Text style={styles.statHighlightValue}>{MOCK_QUEUE.estimatedWaitMinutes}</Text>
-              <Text style={styles.statHighlightLabel}>menit</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ---------- Kendaraan aktif + riwayat & reminder servis ---------- */}
-        <View style={[styles.sectionPadding, { marginTop: 24, marginBottom: 0 }]}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeadingRow}>
-              <View style={styles.sectionAccentBar} />
-              <Text style={styles.sectionHeading}>Kendaraan kamu</Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push('/vehicles' as any)}>
-              <Text style={styles.sectionLink}>Kelola</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <FlatList
-          ref={vehicleListRef}
-          data={MOCK_VEHICLES}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={VEHICLE_WIDTH + CARD_GAP}
-          decelerationRate="fast"
-          contentContainerStyle={{ paddingHorizontal: 20, gap: CARD_GAP }}
-          onScroll={handleVehicleScroll}
-          scrollEventThrottle={16}
-          style={{ marginTop: 12 }}
-          renderItem={({ item }) => {
-            const VehicleIcon = VEHICLE_ICON[item.type];
-            return (
-              <View style={[styles.vehicleCard, { width: VEHICLE_WIDTH }]}>
-                <View style={styles.vehicleTopRow}>
-                  <View style={styles.vehicleIconCircle}>
-                    <VehicleIcon size={20} color={colors.primaryDark} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.vehicleName}>{item.name}</Text>
-                    <Text style={styles.vehiclePlate}>{item.plate}</Text>
-                  </View>
-                  {item.dueSoon && (
-                    <View style={styles.dueBadge}>
-                      <Text style={styles.dueBadgeText}>Segera servis</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.vehicleDivider} />
-                <View style={styles.vehicleInfoRow}>
-                  <CheckCircle2 size={14} color={colors.textSecondary} />
-                  <Text style={styles.vehicleInfoText}>
-                    Terakhir servis: {item.lastServiceType} · {item.lastService}
-                  </Text>
-                </View>
-                <View style={styles.vehicleInfoRow}>
-                  <CalendarClock size={14} color={item.dueSoon ? colors.primary : colors.textSecondary} />
-                  <Text
-                    style={[
-                      styles.vehicleInfoText,
-                      item.dueSoon && { color: colors.primaryDark, fontWeight: '600' },
-                    ]}
-                  >
-                    Servis berikutnya: {item.nextServiceEstimate}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.vehicleCta}
-                  onPress={() => router.push('/booking/create' as any)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.vehicleCtaText}>Booking servis kendaraan ini</Text>
-                  <ChevronRight size={16} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-            );
-          }}
-        />
-        <View style={styles.dotsRow}>
-          {MOCK_VEHICLES.map((_, i) => (
-            <View key={i} style={[styles.dot, i === activeVehicleIndex && styles.dotActive]} />
-          ))}
-        </View>
-        <View style={styles.sectionPadding}>
           <TouchableOpacity
-            style={styles.bookingButton}
-            onPress={() => router.push('/booking/create' as any)}
+            style={styles.locationBadgeButton}
             activeOpacity={0.85}
+            onPress={handleLogout}
           >
-            <Wrench size={18} color={colors.textOnPrimary} />
-            <Text style={styles.bookingButtonText}>Buat booking servis</Text>
+            <LogOut size={20} color={colors.textOnPrimary} />
           </TouchableOpacity>
         </View>
-        <View style={styles.sectionPadding}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeadingRow}>
-              <View style={styles.sectionAccentBar} />
-              <Text style={styles.sectionHeading}>Booking kamu</Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push('/booking' as any)}>
-              <Text style={styles.sectionLink}>Lihat semua</Text>
-            </TouchableOpacity>
-          </View>
-          {MOCK_BOOKINGS.map((booking) => {
-            const StatusIcon = STATUS_ICON[booking.status];
-            return (
-              <TouchableOpacity
-                key={booking.id}
-                style={styles.ticketCard}
-                onPress={() => router.push({ pathname: '/booking/[id]', params: { id: booking.id } })}
-                activeOpacity={0.85}
-              >
-                <View style={styles.ticketAccentBar} />
-                <View style={styles.ticketLeft}>
-                  <Text style={styles.ticketCode}>{booking.ticketCode}</Text>
-                  <Text style={styles.ticketService}>{booking.service}</Text>
-                  <Text style={styles.ticketMeta}>{booking.vehicle} · {booking.date}</Text>
+
+        {/* Greeting with user name */}
+        <View style={styles.greetingRow}>
+          <Text style={styles.greetingText}>
+            Halo, <Text style={styles.greetingName}>{user?.name || 'User'}</Text> 👋
+          </Text>
+        </View>
+
+        {/* Address Location Display */}
+        <View style={styles.locationRow}>
+          <MapPin size={18} color={colors.primary} style={styles.locationIcon} />
+          <Text style={styles.locationText} numberOfLines={2}>
+            4517 Washington Ave. Manchester, Kentucky 39495
+          </Text>
+        </View>
+
+        {/* Search Bar Input */}
+        <View style={styles.searchContainer}>
+          <Search size={20} color={colors.primary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search store, Parts, etc.."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
+        {/* Promo Slider Banner */}
+        <View style={styles.bannerSection}>
+          <FlatList
+            ref={bannerListRef}
+            data={PROMO_BANNERS}
+            keyExtractor={(item) => item.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={handleBannerScroll}
+            scrollEventThrottle={16}
+            renderItem={({ item }) => (
+              <View style={[styles.bannerCard, { width: BANNER_WIDTH }]}>
+                <View style={styles.bannerLeftContent}>
+                  <Text style={styles.bannerTag}>{item.tag}</Text>
+                  <Text style={styles.bannerTitle}>{item.title}</Text>
+                  <TouchableOpacity
+                    style={styles.shopNowButton}
+                    activeOpacity={0.85}
+                    onPress={() => router.push('/explore' as any)}
+                  >
+                    <Text style={styles.shopNowButtonText}>{item.buttonText}</Text>
+                  </TouchableOpacity>
                 </View>
 
-                <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLOR[booking.status]}22` }]}>
-                  <StatusIcon size={12} color={STATUS_COLOR[booking.status]} />
-                  <Text style={[styles.statusText, { color: STATUS_COLOR[booking.status] }]}>
-                    {STATUS_LABEL[booking.status]}
+                <View style={styles.bannerImageContainer}>
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    style={styles.bannerImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              </View>
+            )}
+          />
+
+          {/* Banner Pagination Dots */}
+          <View style={styles.dotsRow}>
+            {PROMO_BANNERS.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.dot,
+                  index === activeBannerIndex && styles.dotActive,
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+
+        {/* Services Section — from API */}
+        <View style={styles.categoriesSection}>
+          {servicesLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ paddingVertical: 20 }} />
+          ) : apiServices.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScrollContainer}
+            >
+              {apiServices.map((service) => {
+                const isActive = selectedCategory === String(service.id);
+                // Pick an icon based on service name keywords
+                let IconComponent = ShieldCheck;
+                const lowerName = service.name.toLowerCase();
+                if (lowerName.includes('oli') || lowerName.includes('fluids')) {
+                  IconComponent = Droplet;
+                } else if (lowerName.includes('mesin') || lowerName.includes('engine') || lowerName.includes('overhaul')) {
+                  IconComponent = Wrench;
+                } else if (lowerName.includes('kaki') || lowerName.includes('spooring') || lowerName.includes('rem')) {
+                  IconComponent = Disc;
+                } else if (lowerName.includes('tune') || lowerName.includes('diagnostic')) {
+                  IconComponent = Search;
+                }
+
+                return (
+                  <TouchableOpacity
+                    key={service.id}
+                    style={[
+                      styles.categoryCard,
+                      isActive ? styles.categoryCardActive : styles.categoryCardInactive,
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={() => setSelectedCategory(
+                      selectedCategory === String(service.id) ? '' : String(service.id)
+                    )}
+                  >
+                    <View
+                      style={[
+                        styles.categoryIconCircle,
+                        isActive ? styles.categoryIconCircleActive : styles.categoryIconCircleInactive,
+                      ]}
+                    >
+                      <IconComponent
+                        size={24}
+                        color={isActive ? colors.textOnPrimary : colors.primary}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.categoryName,
+                        isActive ? styles.categoryNameActive : styles.categoryNameInactive,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {service.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            /* Fallback to default categories if API fails */
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScrollContainer}
+            >
+              {DEFAULT_CATEGORIES.map((category) => {
+                const IconComponent = category.icon;
+                const isActive = selectedCategory === category.id;
+
+                return (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[
+                      styles.categoryCard,
+                      isActive ? styles.categoryCardActive : styles.categoryCardInactive,
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={() => setSelectedCategory(category.id)}
+                  >
+                    <View
+                      style={[
+                        styles.categoryIconCircle,
+                        isActive ? styles.categoryIconCircleActive : styles.categoryIconCircleInactive,
+                      ]}
+                    >
+                      <IconComponent
+                        size={24}
+                        color={isActive ? colors.textOnPrimary : colors.primary}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.categoryName,
+                        isActive ? styles.categoryNameActive : styles.categoryNameInactive,
+                      ]}
+                    >
+                      {category.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Near By Stores Section */}
+        <View style={styles.storesSection}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Near by stores</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push('/explore' as any)}
+            >
+              <Text style={styles.viewAllText}>View all</Text>
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={NEARBY_STORES}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.storesListContainer}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.storeCard, { width: STORE_CARD_WIDTH }]}
+                activeOpacity={0.9}
+                onPress={() => handleOpenStoreModal(item)}
+              >
+                <View style={styles.storeImageWrapper}>
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    style={styles.storeImage}
+                    resizeMode="cover"
+                  />
+                  {/* Rating Badge */}
+                  <View style={styles.ratingBadge}>
+                    <Star size={13} color={colors.ratingStar} fill={colors.ratingStar} />
+                    <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.storeCardDetails}>
+                  <Text style={styles.storeCategory}>{item.category}</Text>
+                  <Text style={styles.storeName} numberOfLines={1}>
+                    {item.name}
                   </Text>
+                  <View style={styles.storeAddressRow}>
+                    <MapPin size={14} color={colors.primary} style={{ marginTop: 1 }} />
+                    <Text style={styles.storeAddress} numberOfLines={2}>
+                      {item.address}
+                    </Text>
+                  </View>
                 </View>
               </TouchableOpacity>
-            );
-          })}
+            )}
+          />
         </View>
       </ScrollView>
+
+      {/* Store Branch Detail Modal */}
+      <StoreDetailModal
+        visible={isModalVisible}
+        store={selectedStore}
+        onClose={handleCloseStoreModal}
+        onSelectBooking={handleSelectBookingFromStore}
+      />
     </SafeAreaView>
   );
 }
@@ -363,389 +483,332 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
-  content: {
-    paddingBottom: 40,
-  },
-  sectionPadding: {
-    paddingHorizontal: 20,
-    marginTop: 24,
+  scrollContent: {
+    paddingBottom: 28,
   },
 
-  // Hero
-  hero: {
-    backgroundColor: colors.primaryDark,
-    paddingHorizontal: 20,
-    paddingBottom: 44,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    overflow: 'hidden',
-  },
-  heroTopRow: {
+  /* Top Header Row */
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  profileRow: {
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  locationBadgeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  /* Greeting */
+  greetingRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  greetingText: {
+    fontSize: 16,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  greetingName: {
+    color: colors.headingDark,
+    fontWeight: '800',
+    fontSize: 17,
+  },
+
+  /* Address Bar */
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  locationIcon: {
+    marginRight: 8,
+    marginTop: 2,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.headingDark,
+    lineHeight: 20,
+  },
+
+  /* Search Bar Input */
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    marginHorizontal: 20,
+    paddingHorizontal: 16,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: '#FFFFFF',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.headingDark,
+    paddingVertical: 0,
+  },
+
+  /* Promo Slider Banner */
+  bannerSection: {
+    marginBottom: 20,
+  },
+  bannerCard: {
+    marginHorizontal: 20,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 160,
+    overflow: 'hidden',
+  },
+  bannerLeftContent: {
     flex: 1,
     paddingRight: 12,
   },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  bannerTag: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: 6,
   },
-  avatarText: {
+  bannerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.headingDark,
+    lineHeight: 26,
+    marginBottom: 14,
+  },
+  shopNowButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  shopNowButtonText: {
     color: colors.textOnPrimary,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  greeting: {
-    color: colors.textOnPrimary,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
   },
-  memberTier: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  pointsBadge: {
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignItems: 'center',
-    minWidth: 64,
-  },
-  pointsValue: {
-    color: colors.textOnPrimary,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  pointsLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 10,
-    marginTop: 1,
-  },
-  heroDecoCircleLarge: {
-    position: 'absolute',
-    top: -60,
-    right: -50,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  heroDecoCircleSmall: {
-    position: 'absolute',
-    bottom: -30,
-    left: -20,
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-
-  // Ads
-  adList: {
-    marginTop: -26,
-  },
-  adCard: {
-    borderRadius: 18,
-    padding: 18,
-    height: 112,
-    justifyContent: 'center',
+  bannerImageContainer: {
+    width: 110,
+    height: 110,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: colors.primaryDarker,
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    backgroundColor: '#E2E8F0',
   },
-  adDecoCircle: {
-    position: 'absolute',
-    top: -30,
-    right: -20,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  adTitle: {
-    color: colors.textOnPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  adSubtitle: {
-    color: colors.textOnPrimary,
-    fontSize: 12,
-    marginTop: 4,
-    opacity: 0.9,
+  bannerImage: {
+    width: '100%',
+    height: '100%',
   },
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
     gap: 6,
-    marginTop: 10,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.card,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#CBD5E1',
   },
   dotActive: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: colors.primary,
-    width: 16,
   },
 
-  // Stats
-  statsRow: {
-    flexDirection: 'row',
+  /* Categories Section */
+  categoriesSection: {
+    marginBottom: 24,
   },
-  statCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: colors.primaryDarker,
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  statCardWide: {
-    flex: 1,
-  },
-  statIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statLabel: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statSubtitle: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  statHighlight: {
-    alignItems: 'center',
-    backgroundColor: colors.primarySoft,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  statHighlightValue: {
-    color: colors.primaryDark,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  statHighlightLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-
-  // Vehicle card
-  vehicleCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: colors.primaryDarker,
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: colors.card,
-  },
-  vehicleTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  categoriesScrollContainer: {
+    paddingHorizontal: 20,
     gap: 12,
   },
-  vehicleIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  vehicleName: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  vehiclePlate: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  dueBadge: {
-    backgroundColor: colors.primary,
+  categoryCard: {
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  dueBadgeText: {
-    color: colors.textOnPrimary,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  vehicleDivider: {
-    height: 1,
-    backgroundColor: colors.card,
-    marginVertical: 14,
-  },
-  vehicleInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  vehicleInfoText: {
-    color: colors.textSecondary,
-    fontSize: 12.5,
-    flexShrink: 1,
-  },
-  vehicleCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.primarySoft,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginTop: 6,
-  },
-  vehicleCtaText: {
-    color: colors.primaryDark,
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
-
-  // Booking CTA
-  bookingButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 15,
-    flexDirection: 'row',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    shadowColor: colors.primaryDarker,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    minWidth: 105,
+    maxWidth: 120,
+  },
+  categoryCardActive: {
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
     elevation: 4,
   },
-  bookingButtonText: {
-    color: colors.textOnPrimary,
-    fontSize: 15,
+  categoryCardInactive: {
+    backgroundColor: colors.categoryBg,
+  },
+  categoryIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  categoryIconCircleActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  categoryIconCircleInactive: {
+    backgroundColor: 'transparent',
+  },
+  categoryName: {
+    fontSize: 12,
     fontWeight: '700',
+    textAlign: 'center',
+  },
+  categoryNameActive: {
+    color: colors.textOnPrimary,
+  },
+  categoryNameInactive: {
+    color: colors.primary,
   },
 
-  // Section heading
+  /* Nearby Stores Section */
+  storesSection: {
+    paddingBottom: 8,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    paddingHorizontal: 20,
+    marginBottom: 14,
   },
-  sectionHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.headingDark,
   },
-  sectionAccentBar: {
-    width: 4,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: colors.primary,
-  },
-  sectionHeading: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  sectionLink: {
-    color: colors.primaryDark,
+  viewAllText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: colors.primary,
   },
-
-  // Ticket / booking card
-  ticketCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 14,
-    paddingLeft: 18,
+  storesListContainer: {
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  storeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  storeImageWrapper: {
+    height: 125,
+    width: '100%',
+    position: 'relative',
+    backgroundColor: '#F1F5F9',
+  },
+  storeImage: {
+    width: '100%',
+    height: '100%',
+  },
+  ratingBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    overflow: 'hidden',
-    shadowColor: colors.primaryDarker,
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  ticketAccentBar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    backgroundColor: colors.primary,
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.headingDark,
   },
-  ticketLeft: {
-    flex: 1,
-    paddingRight: 8,
+  storeCardDetails: {
+    padding: 12,
   },
-  ticketCode: {
-    color: colors.textMuted,
+  storeCategory: {
     fontSize: 11,
     fontWeight: '600',
-    marginBottom: 2,
+    color: colors.primary,
+    marginBottom: 4,
   },
-  ticketService: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
+  storeName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.headingDark,
+    marginBottom: 6,
   },
-  ticketMeta: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  statusPill: {
+  storeAddressRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    gap: 5,
+    alignItems: 'flex-start',
+    gap: 4,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
+  storeAddress: {
+    flex: 1,
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
   },
 });
