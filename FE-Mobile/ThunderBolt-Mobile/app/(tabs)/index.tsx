@@ -17,14 +17,14 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Menu,
-  MapPin,
   Search,
   Wrench,
   Disc,
   ShieldCheck,
   Droplet,
   Star,
-  LogOut,
+  MapPin,
+  User,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { StoreDetailModal, StoreBranch } from '../../components/store-detail-modal';
@@ -47,6 +47,22 @@ interface CategoryItem {
   id: string;
   name: string;
   icon: React.ComponentType<any>;
+}
+
+function getShortCategoryName(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes('oli') || lower.includes('fluids')) return 'Ganti Oli';
+  if (lower.includes('mesin') || lower.includes('engine') || lower.includes('overhaul')) return 'Mesin';
+  if (lower.includes('tune') || lower.includes('diagnostic')) return 'Tune Up';
+  if (lower.includes('kaki') || lower.includes('spooring') || lower.includes('rem')) return 'Spooring';
+  if (lower.includes('spare') || lower.includes('parts')) return 'Spare Parts';
+
+  const cleaned = name.split('(')[0].trim();
+  const words = cleaned.split(' ');
+  if (words.length > 2) {
+    return words.slice(0, 2).join(' ');
+  }
+  return cleaned;
 }
 
 const PROMO_BANNERS: BannerItem[] = [
@@ -150,7 +166,7 @@ const NEARBY_STORES: StoreBranch[] = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -204,8 +220,8 @@ export default function HomeScreen() {
     });
   };
 
-  const handleLogout = async () => {
-    await logout();
+  const handleGoProfile = () => {
+    router.push('/(tabs)/profile' as any);
   };
 
   return (
@@ -221,28 +237,22 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.locationBadgeButton}
+            style={styles.profileButton}
             activeOpacity={0.85}
-            onPress={handleLogout}
+            onPress={handleGoProfile}
           >
-            <LogOut size={20} color={colors.textOnPrimary} />
+            <User size={20} color={colors.textOnPrimary} />
           </TouchableOpacity>
         </View>
 
         {/* Greeting with user name */}
         <View style={styles.greetingRow}>
           <Text style={styles.greetingText}>
-            Halo, <Text style={styles.greetingName}>{user?.name || 'User'}</Text> 👋
+            Halo, <Text style={styles.greetingName}>{user?.name || 'User'}</Text> 
           </Text>
         </View>
 
-        {/* Address Location Display */}
-        <View style={styles.locationRow}>
-          <MapPin size={18} color={colors.primary} style={styles.locationIcon} />
-          <Text style={styles.locationText} numberOfLines={2}>
-            4517 Washington Ave. Manchester, Kentucky 39495
-          </Text>
-        </View>
+
 
         {/* Search Bar Input */}
         <View style={styles.searchContainer}>
@@ -311,12 +321,8 @@ export default function HomeScreen() {
           {servicesLoading ? (
             <ActivityIndicator color={colors.primary} style={{ paddingVertical: 20 }} />
           ) : apiServices.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesScrollContainer}
-            >
-              {apiServices.map((service) => {
+            <View style={styles.categoriesScrollContainer}>
+              {apiServices.slice(0, 3).map((service) => {
                 const isActive = selectedCategory === String(service.id);
                 // Pick an icon based on service name keywords
                 let IconComponent = ShieldCheck;
@@ -350,7 +356,7 @@ export default function HomeScreen() {
                       ]}
                     >
                       <IconComponent
-                        size={24}
+                        size={20}
                         color={isActive ? colors.textOnPrimary : colors.primary}
                       />
                     </View>
@@ -361,20 +367,16 @@ export default function HomeScreen() {
                       ]}
                       numberOfLines={2}
                     >
-                      {service.name}
+                      {getShortCategoryName(service.name)}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </View>
           ) : (
             /* Fallback to default categories if API fails */
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesScrollContainer}
-            >
-              {DEFAULT_CATEGORIES.map((category) => {
+            <View style={styles.categoriesScrollContainer}>
+              {DEFAULT_CATEGORIES.slice(0, 3).map((category) => {
                 const IconComponent = category.icon;
                 const isActive = selectedCategory === category.id;
 
@@ -395,7 +397,7 @@ export default function HomeScreen() {
                       ]}
                     >
                       <IconComponent
-                        size={24}
+                        size={20}
                         color={isActive ? colors.textOnPrimary : colors.primary}
                       />
                     </View>
@@ -410,7 +412,7 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </View>
           )}
         </View>
 
@@ -505,7 +507,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
-  locationBadgeButton: {
+  profileButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -535,24 +537,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
 
-  /* Address Bar */
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  locationIcon: {
-    marginRight: 8,
-    marginTop: 2,
-  },
-  locationText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.headingDark,
-    lineHeight: 20,
-  },
+
 
   /* Search Bar Input */
   searchContainer: {
@@ -668,46 +653,51 @@ const styles = StyleSheet.create({
   },
   categoriesScrollContainer: {
     paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 12,
   },
   categoryCard: {
-    borderRadius: 20,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 105,
-    maxWidth: 120,
+    minHeight: 88,
   },
   categoryCardActive: {
     backgroundColor: colors.primary,
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
   },
   categoryCardInactive: {
     backgroundColor: colors.categoryBg,
+    borderWidth: 1,
+    borderColor: '#FFE4DC',
   },
   categoryIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   categoryIconCircleActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   categoryIconCircleInactive: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#FFFFFF',
   },
   categoryName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
+    lineHeight: 14,
   },
   categoryNameActive: {
     color: colors.textOnPrimary,

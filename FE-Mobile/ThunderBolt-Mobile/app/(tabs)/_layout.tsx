@@ -1,6 +1,5 @@
-// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
-import { Home, Wrench } from 'lucide-react-native';
+import { Home, Wrench, User } from 'lucide-react-native';
 import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -36,6 +35,13 @@ export default function TabLayout() {
         options={{
           title: 'Servis',
           tabBarIcon: ({ color, size }) => <Wrench color={color} size={size} strokeWidth={2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profil',
+          tabBarIcon: ({ color, size }) => <User color={color} size={size} strokeWidth={2} />,
         }}
       />
     </Tabs>

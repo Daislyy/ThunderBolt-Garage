@@ -15,7 +15,7 @@ const getDefaultBaseUrl = () => {
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:5000/api';
   }
-  return 'http://localhost:5000/api';
+  return 'http://127.0.0.1:5000/api';
 };
 
 export const BASE_URL = getDefaultBaseUrl();
@@ -70,13 +70,19 @@ export async function apiRequest<T = any>(
 
   const url = `${BASE_URL}${endpoint}`;
 
+  // Set 8-second timeout controller
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     const response = await fetch(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
     const data = await response.json();
 
     if (!response.ok) {
@@ -85,8 +91,12 @@ export async function apiRequest<T = any>(
 
     return data;
   } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Koneksi timeout. Server/database mungkin lambat atau sedang di-reset.');
+    }
     // Network error (backend unreachable)
-    if (error.message === 'Network request failed') {
+    if (error.message === 'Network request failed' || error.message?.includes('Failed to fetch')) {
       throw new Error('Tidak bisa terhubung ke server. Pastikan backend sudah berjalan.');
     }
     throw error;

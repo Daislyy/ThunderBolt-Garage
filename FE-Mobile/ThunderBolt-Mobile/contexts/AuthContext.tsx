@@ -32,24 +32,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check for existing token on app start
   useEffect(() => {
+    let isMounted = true;
     const loadUser = async () => {
       try {
         const storedToken = await getToken();
         if (storedToken) {
-          setTokenState(storedToken);
+          if (isMounted) setTokenState(storedToken);
           const userData = await authService.getMe();
-          setUser(userData);
+          if (isMounted) setUser(userData);
         }
       } catch (error) {
-        // Token expired or invalid, clear it
-        await authService.logout();
-        setUser(null);
-        setTokenState(null);
+        console.log('Token expired/invalid (or DB reset), resetting session:', error);
+        try {
+          await authService.logout();
+        } catch {}
+        if (isMounted) {
+          setUser(null);
+          setTokenState(null);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
     loadUser();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
