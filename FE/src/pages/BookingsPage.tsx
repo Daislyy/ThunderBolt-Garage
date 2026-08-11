@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, CalendarCheck, Trash2, RefreshCw, ChevronDown, X, Wrench, Plus, Calendar, Clock, FileSpreadsheet } from 'lucide-react'
+import { Search, CalendarCheck, Trash2, RefreshCw, ChevronDown, X, Wrench, Plus, Calendar, Clock, FileSpreadsheet, Package } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import BookingStatusBadge from '../components/BookingStatusBadge'
 import BrandLogo from '../components/BrandLogo'
@@ -16,6 +16,20 @@ interface Booking {
 
 interface SelectItem { id: number; name: string; email?: string; user_id?: number; brand?: string; model?: string; license_plate?: string; description?: string | null }
 
+interface MasterSparepart {
+  id: number;
+  name: string;
+  price: number;
+}
+
+interface BookingSparepartItem {
+  sparepart_id: number;
+  name: string;
+  price: number;
+  quantity: number;
+  notes: string;
+}
+
 const initialAddForm = { user_id: 0, vehicle_id: 0, service_id: 0, booking_date: '', booking_time: '09:00', notes: '' }
 
 export default function BookingsPage() {
@@ -28,6 +42,7 @@ export default function BookingsPage() {
   const [customers, setCustomers] = useState<SelectItem[]>([])
   const [allVehicles, setAllVehicles] = useState<SelectItem[]>([])
   const [services, setServices] = useState<SelectItem[]>([])
+  const [masterSpareparts, setMasterSpareparts] = useState<MasterSparepart[]>([])
 
   // ModalTambah
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -40,24 +55,35 @@ export default function BookingsPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
+  // Sparepart Modal State
+  const [bookingSpareparts, setBookingSpareparts] = useState<BookingSparepartItem[]>([])
+  const [loadingSpareparts, setLoadingSpareparts] = useState(false)
+  const [isSparepartDropdownOpen, setIsSparepartDropdownOpen] = useState(false)
+  const [sparepartSearchQuery, setSparepartSearchQuery] = useState('')
+
   const fetchAll = async () => {
     setLoading(true)
     try {
-      const [bR, cR, vR, sR] = await Promise.all([
+      const [bR, cR, vR, sR, spR] = await Promise.all([
         api.get('/bookings'),
         api.get('/users').catch(() => ({ data: { data: [] } })),
         api.get('/vehicles').catch(() => ({ data: { data: [] } })),
-        api.get('/services').catch(() => ({ data: { data: [] } }))
+        api.get('/services').catch(() => ({ data: { data: [] } })),
+        api.get('/spareparts').catch(() => ({ data: { data: [] } }))
       ])
       setBookings(bR.data.data || [])
       setCustomers(cR.data.data || [])
       setAllVehicles(vR.data.data || [])
       setServices(sR.data.data || [])
+      setMasterSpareparts(spR.data.data || [])
     } finally { setLoading(false) }
   }
 
   useEffect(() => { fetchAll() }, [])
 
+  const formatRupiah = (amount: number) => {
+    return 'Rp ' + amount.toLocaleString('id-ID')
+  }
 
   const filtered = bookings.filter(b => {
     const q = search.toLowerCase()
@@ -135,11 +161,95 @@ export default function BookingsPage() {
     finally { setSubmitting(false) }
   }
 
+  const handleOpenDetailModal = async (b: Booking) => {
+    setSelected(b)
+    setNewStatus(b.status)
+    setBookingSpareparts([])
+    setIsSparepartDropdownOpen(false)
+    setSparepartSearchQuery('')
+    setLoadingSpareparts(true)
+    try {
+      const res = await api.get(`/bookings/${b.id}/spareparts`)
+      if (res.data && res.data.data) {
+        setBookingSpareparts(res.data.data.map((sp: any) => ({
+          sparepart_id: sp.sparepart_id,
+          name: sp.name,
+          price: Number(sp.price),
+          quantity: Number(sp.quantity),
+          notes: sp.notes || ''
+        })))
+      }
+    } catch (err) {
+      console.error('Gagal mengambil data sparepart booking:', err)
+    } finally {
+      setLoadingSpareparts(false)
+    }
+  }
+
+  const handleAddSparepart = (sp: MasterSparepart) => {
+    setBookingSpareparts(prev => {
+      const existingIndex = prev.findIndex(item => item.sparepart_id === sp.id)
+      if (existingIndex > -1) {
+        const updated = [...prev]
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + 1
+        }
+        return updated
+      } else {
+        return [...prev, { sparepart_id: sp.id, name: sp.name, price: sp.price, quantity: 1, notes: '' }]
+      }
+    })
+    setIsSparepartDropdownOpen(false)
+    setSparepartSearchQuery('')
+  }
+
+  const handleQuantityChange = (index: number, qty: number) => {
+    const val = Math.max(1, qty)
+    setBookingSpareparts(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], quantity: val }
+      return updated
+    })
+  }
+
+  const handleNotesChange = (index: number, notes: string) => {
+    setBookingSpareparts(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], notes }
+      return updated
+    })
+  }
+
+  const handleRemoveSparepart = (index: number) => {
+    setBookingSpareparts(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const totalSparepartsPrice = bookingSpareparts.reduce(
+    (sum, item) => sum + (item.quantity * item.price), 0
+  )
+
   const handleUpdateStatus = async () => {
     if (!selected || !newStatus) return
     setUpdatingId(selected.id)
-    try { await api.patch(`/bookings/${selected.id}/status`, { status: newStatus }); setBookings(p => p.map(b => b.id === selected.id ? { ...b, status: newStatus } : b)); setSelected(null) }
-    finally { setUpdatingId(null) }
+    try {
+      // Update status booking
+      await api.patch(`/bookings/${selected.id}/status`, { status: newStatus })
+      
+      // Update data spareparts booking
+      await api.post(`/bookings/${selected.id}/spareparts`, bookingSpareparts.map(sp => ({
+        sparepart_id: sp.sparepart_id,
+        quantity: sp.quantity,
+        notes: sp.notes
+      })))
+
+      setBookings(p => p.map(b => b.id === selected.id ? { ...b, status: newStatus } : b))
+      setSelected(null)
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Gagal menyimpan status & sparepart')
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   const handleDelete = async (id: number) => {
@@ -248,7 +358,7 @@ export default function BookingsPage() {
                         <button
                           className="klesi-btn-ghost"
                           style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem', borderRadius: '0.75rem' }}
-                          onClick={() => { setSelected(b); setNewStatus(b.status) }}
+                          onClick={() => handleOpenDetailModal(b)}
                         >
                           <ChevronDown style={{ width: '0.875rem', height: '0.875rem' }} /> Update
                         </button>
@@ -337,7 +447,7 @@ export default function BookingsPage() {
       <AnimatePresence>
         {selected && (
           <div className="klesi-modal-overlay" onClick={e => e.target === e.currentTarget && setSelected(null)}>
-            <motion.div initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} className="klesi-modal">
+            <motion.div initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} className="klesi-modal" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <h3 style={{ fontSize: '1.125rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Detail & Update Status</h3>
                 <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }} onClick={() => setSelected(null)}>
@@ -356,6 +466,7 @@ export default function BookingsPage() {
                 </div>
               </div>
 
+              {/* Layanan Dipilih */}
               <div style={{ padding: '1rem', backgroundColor: '#fff7ed', borderRadius: '1rem', border: '1px solid #ffedd5', marginBottom: '1rem' }}>
                 <span style={{ fontSize: '0.625rem', fontWeight: 900, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.25rem' }}>
                   <Wrench style={{ width: '0.75rem', height: '0.75rem' }} /> Layanan Dipilih
@@ -366,6 +477,211 @@ export default function BookingsPage() {
                   <span>•</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}><Clock style={{ width: '0.75rem', height: '0.75rem' }} /> {selected.booking_time?.slice(0, 5)} WIB</span>
                 </div>
+              </div>
+
+              {/* SPAREPART DIGUNAKAN SECTION */}
+              <div style={{ padding: '1rem', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid #e2e8f0', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '0.625rem', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    <Package style={{ width: '0.75rem', height: '0.75rem' }} /> SPAREPART DIGUNAKAN
+                  </span>
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsSparepartDropdownOpen(!isSparepartDropdownOpen)}
+                      style={{
+                        padding: '0.45rem 0.875rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        borderRadius: '0.75rem',
+                        backgroundColor: '#fff7ed',
+                        color: '#ea580c',
+                        border: '1.5px solid #ffedd5',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 6px rgba(249, 115, 22, 0.12)'
+                      }}
+                    >
+                      <Plus style={{ width: '0.875rem', height: '0.875rem' }} />
+                      <span>+ Tambah Sparepart</span>
+                      <ChevronDown style={{ width: '0.875rem', height: '0.875rem', transform: isSparepartDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+                    </button>
+
+                    <AnimatePresence>
+                      {isSparepartDropdownOpen && (
+                        <>
+                          {/* Invisible Backdrop to handle click-outside */}
+                          <div
+                            style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                            onClick={() => setIsSparepartDropdownOpen(false)}
+                          />
+
+                          <motion.div
+                            initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                              position: 'absolute',
+                              right: 0,
+                              top: 'calc(100% + 0.5rem)',
+                              width: '320px',
+                              backgroundColor: '#ffffff',
+                              borderRadius: '1rem',
+                              border: '1px solid #e2e8f0',
+                              boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1)',
+                              zIndex: 50,
+                              overflow: 'hidden',
+                              padding: '0.75rem'
+                            }}
+                          >
+                            {/* Search Header */}
+                            <div style={{ position: 'relative', marginBottom: '0.625rem' }}>
+                              <Search style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: '0.875rem', height: '0.875rem', color: '#94a3b8' }} />
+                              <input
+                                type="text"
+                                autoFocus
+                                className="klesi-input"
+                                style={{
+                                  paddingLeft: '2.125rem',
+                                  paddingTop: '0.375rem',
+                                  paddingBottom: '0.375rem',
+                                  fontSize: '0.75rem',
+                                  borderRadius: '0.625rem',
+                                  border: '1px solid #cbd5e1'
+                                }}
+                                placeholder="Cari sparepart..."
+                                value={sparepartSearchQuery}
+                                onChange={e => setSparepartSearchQuery(e.target.value)}
+                              />
+                            </div>
+
+                            {/* List options */}
+                            <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              {masterSpareparts.filter(sp => sp.name.toLowerCase().includes(sparepartSearchQuery.toLowerCase())).length === 0 ? (
+                                <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8' }}>
+                                  Sparepart tidak ditemukan
+                                </div>
+                              ) : (
+                                masterSpareparts
+                                  .filter(sp => sp.name.toLowerCase().includes(sparepartSearchQuery.toLowerCase()))
+                                  .map(sp => {
+                                    const isAlreadyAdded = bookingSpareparts.some(bsp => bsp.sparepart_id === sp.id)
+                                    return (
+                                      <button
+                                        key={sp.id}
+                                        type="button"
+                                        onClick={() => handleAddSparepart(sp)}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          width: '100%',
+                                          padding: '0.5rem 0.625rem',
+                                          borderRadius: '0.625rem',
+                                          border: 'none',
+                                          backgroundColor: 'transparent',
+                                          textAlign: 'left',
+                                          cursor: 'pointer',
+                                          transition: 'background-color 0.15s ease'
+                                        }}
+                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fff7ed')}
+                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                      >
+                                        <div>
+                                          <div style={{ fontWeight: 800, fontSize: '0.75rem', color: '#0f172a' }}>{sp.name}</div>
+                                          {isAlreadyAdded && (
+                                            <span style={{ fontSize: '0.625rem', color: '#ea580c', fontWeight: 700 }}>Sudah ditambahkan (+1)</span>
+                                          )}
+                                        </div>
+                                        <span style={{
+                                          fontSize: '0.7rem',
+                                          fontWeight: 800,
+                                          color: '#ea580c',
+                                          backgroundColor: '#ffedd5',
+                                          padding: '0.125rem 0.375rem',
+                                          borderRadius: '0.375rem',
+                                          whiteSpace: 'nowrap'
+                                        }}>
+                                          {formatRupiah(sp.price)}
+                                        </span>
+                                      </button>
+                                    )
+                                  })
+                              )}
+                            </div>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {loadingSpareparts ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8' }}>Memuat sparepart...</div>
+                ) : bookingSpareparts.length === 0 ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', backgroundColor: '#f8fafc', borderRadius: '0.75rem', border: '1px dashed #cbd5e1' }}>
+                    Belum ada sparepart ditambahkan
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                    {bookingSpareparts.map((item, idx) => (
+                      <div key={idx} style={{ padding: '0.625rem 0.75rem', backgroundColor: '#f8fafc', borderRadius: '0.75rem', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: '140px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '0.8125rem', color: '#0f172a', display: 'block' }}>{item.name}</span>
+                            <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{formatRupiah(item.price)} / unit</span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>Qty:</span>
+                              <input
+                                type="number"
+                                min={1}
+                                className="klesi-input"
+                                style={{ width: '3.5rem', padding: '0.25rem 0.375rem', fontSize: '0.75rem', textAlign: 'center' }}
+                                value={item.quantity}
+                                onChange={e => handleQuantityChange(idx, parseInt(e.target.value) || 1)}
+                              />
+                            </div>
+
+                            <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: '#0f172a', minWidth: '5.5rem', textAlign: 'right' }}>
+                              {formatRupiah(item.quantity * item.price)}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSparepart(idx)}
+                              style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '0.25rem' }}
+                              title="Hapus sparepart"
+                            >
+                              <X style={{ width: '1rem', height: '1rem' }} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <input
+                            className="klesi-input"
+                            style={{ width: '100%', padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}
+                            placeholder="Catatan sparepart (misal: Seri/No Part, Garansi, dll)..."
+                            value={item.notes}
+                            onChange={e => handleNotesChange(idx, e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1', marginTop: '0.25rem' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: '#475569' }}>Total Harga Sparepart:</span>
+                      <span style={{ fontSize: '1rem', fontWeight: 900, color: '#F97316' }}>{formatRupiah(totalSparepartsPrice)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: '1.25rem' }}>
@@ -388,3 +704,4 @@ export default function BookingsPage() {
     </div>
   )
 }
+

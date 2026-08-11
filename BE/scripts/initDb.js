@@ -102,6 +102,31 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // 7. Table spareparts
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS spareparts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 8. Table booking_spareparts
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS booking_spareparts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        booking_id INT NOT NULL,
+        sparepart_id INT NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_bs_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+        CONSTRAINT fk_bs_sparepart FOREIGN KEY (sparepart_id) REFERENCES spareparts(id) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     console.log('All tables created/verified successfully on Aiven MySQL.');
 
     // Seed default admin if missing
@@ -128,6 +153,25 @@ export async function initDb() {
         await db.query('INSERT INTO services (name, description) VALUES (?, ?)', [name, description]);
       }
       console.log('Default services seeded successfully.');
+    }
+
+    // Seed default spareparts if empty
+    const [existingSpareparts] = await db.query('SELECT id FROM spareparts');
+    if (existingSpareparts.length === 0) {
+      const defaultSpareparts = [
+        ['Oli Mesin Synthetic 4L', 350000],
+        ['Filter Oli Original', 45000],
+        ['Kampas Rem Depan Set', 250000],
+        ['Busi Iridium Super', 95000],
+        ['Filter Udara Mesin', 80000],
+        ['Mintel / Minyak Rem DOT 4', 60000],
+        ['Aki Mobil 12V 45Ah', 850000],
+        ['V-Belt Alternator', 120000]
+      ];
+      for (const [name, price] of defaultSpareparts) {
+        await db.query('INSERT INTO spareparts (name, price) VALUES (?, ?)', [name, price]);
+      }
+      console.log('Default spareparts seeded successfully.');
     }
 
   } catch (error) {
