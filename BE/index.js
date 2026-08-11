@@ -12,6 +12,7 @@ import vehicleRoutes from './routes/vehicleRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import ratingRoutes from './routes/ratingRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +52,7 @@ app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', uploadRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 // 404 Handler
 app.use((req, res) => {

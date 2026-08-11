@@ -86,6 +86,22 @@ export async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // 6. Table ratings
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS ratings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        booking_id INT NOT NULL,
+        user_id INT NOT NULL,
+        service_id INT NOT NULL,
+        rating INT NOT NULL,
+        review TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     console.log('All tables created/verified successfully on Aiven MySQL.');
 
     // Seed default admin if missing
