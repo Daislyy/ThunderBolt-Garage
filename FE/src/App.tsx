@@ -11,6 +11,7 @@ import UsersPage from './pages/UsersPage'
 import VehiclesPage from './pages/VehiclesPage'
 import ServicesPage from './pages/ServicesPage'
 import BookingsPage from './pages/BookingsPage'
+import RatingsPage from './pages/RatingsPage'
 import NotificationsPage from './pages/NotificationsPage'
 
 function AdminLayout() {
@@ -29,6 +30,7 @@ function AdminLayout() {
               <Route path="/vehicles"      element={<VehiclesPage />} />
               <Route path="/services"      element={<ServicesPage />} />
               <Route path="/bookings"      element={<BookingsPage />} />
+              <Route path="/ratings"       element={<RatingsPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="*"              element={<Navigate to="/dashboard" replace />} />
             </Routes>

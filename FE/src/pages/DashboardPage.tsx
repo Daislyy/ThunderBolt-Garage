@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Calendar,
   Loader2,
+  Star,
 } from 'lucide-react'
 import BookingStatusBadge from '../components/BookingStatusBadge'
 import BrandLogo from '../components/BrandLogo'
@@ -87,6 +88,8 @@ interface Stats {
   menunggu: number
   diproses: number
   selesai: number
+  avgRating: string
+  totalRatings: number
 }
 
 interface Booking {
@@ -102,21 +105,27 @@ interface Booking {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({ users: 0, services: 0, bookings: 0, notifications: 0, menunggu: 0, diproses: 0, selesai: 0 })
+  const [stats, setStats] = useState<Stats>({ users: 0, services: 0, bookings: 0, notifications: 0, menunggu: 0, diproses: 0, selesai: 0, avgRating: '0.0', totalRatings: 0 })
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersRes, servicesRes, bookingsRes, notifRes] = await Promise.all([
+        const [usersRes, servicesRes, bookingsRes, notifRes, ratingsRes] = await Promise.all([
           api.get('/users').catch(() => ({ data: { data: [] } })),
           api.get('/services').catch(() => ({ data: { data: [] } })),
           api.get('/bookings').catch(() => ({ data: { data: [] } })),
           api.get('/notifications/user/0').catch(() => ({ data: { data: [] } })),
+          api.get('/ratings').catch(() => ({ data: { data: [] } })),
         ])
 
         const bookings: Booking[] = bookingsRes.data.data || []
+        const ratingsData: { rating: number }[] = ratingsRes.data.data || []
+        const totalRatings = ratingsData.length
+        const avgRating = totalRatings > 0
+          ? (ratingsData.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) / totalRatings).toFixed(1)
+          : '0.0'
         setStats({
           users: usersRes.data.data?.length ?? 0,
           services: servicesRes.data.data?.length ?? 0,
@@ -125,6 +134,8 @@ export default function DashboardPage() {
           menunggu: bookings.filter((b) => b.status === 'Menunggu').length,
           diproses: bookings.filter((b) => b.status === 'Diproses').length,
           selesai:  bookings.filter((b) => b.status === 'Selesai').length,
+          avgRating,
+          totalRatings,
         })
         setRecentBookings(bookings.slice(0, 5))
       } catch {
@@ -141,6 +152,7 @@ export default function DashboardPage() {
     { label: 'Layanan Servis',  value: stats.services,      icon: Wrench,        color: '#F97316', bg: '#fff7ed' },
     { label: 'Total Booking',   value: stats.bookings,      icon: CalendarCheck, color: '#8b5cf6', bg: '#f5f3ff' },
     { label: 'Notifikasi',      value: stats.notifications, icon: Bell,          color: '#10b981', bg: '#ecfdf5' },
+    { label: 'Rating Rata-rata', value: stats.avgRating,     icon: Star,          color: '#f59e0b', bg: '#fffbeb' },
   ]
 
   const donutSegments: DonutSegment[] = [

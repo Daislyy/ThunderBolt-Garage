@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import db from '../config/database.js';
 
 export const userService = {
@@ -26,9 +27,10 @@ export const userService = {
 
   async createUser(userData) {
     const { name, email, password, profile_image, role = 'customer' } = userData;
+    const hashedPassword = await bcrypt.hash(password, 10);
     const [result] = await db.query(
       'INSERT INTO users (name, email, password, profile_image, role) VALUES (?, ?, ?, ?, ?)',
-      [name, email, password, profile_image || null, role]
+      [name, email, hashedPassword, profile_image || null, role]
     );
     return { id: result.insertId, name, email, role };
   },

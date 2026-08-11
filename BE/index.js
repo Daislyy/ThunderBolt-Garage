@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from './config/database.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -9,6 +11,11 @@ import serviceRoutes from './routes/serviceRoutes.js';
 import vehicleRoutes from './routes/vehicleRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+import ratingRoutes from './routes/ratingRoutes.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -22,8 +29,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve uploaded files as static
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -41,6 +51,8 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/users', uploadRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 // 404 Handler
 app.use((req, res) => {

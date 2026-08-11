@@ -7,6 +7,14 @@ interface UserRow { id: number; name: string; email: string; role: 'admin' | 'cu
 
 const initialForm = { name: '', email: '', password: '', role: 'customer' as 'customer' | 'admin' }
 
+const getProfileImageUrl = (profileImage: string | null | undefined): string => {
+  if (!profileImage) return '';
+  if (profileImage.startsWith('http://') || profileImage.startsWith('https://') || profileImage.startsWith('data:')) {
+    return profileImage;
+  }
+  return `http://localhost:5000${profileImage}`;
+};
+
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [search, setSearch] = useState('')
@@ -47,11 +55,15 @@ export default function UsersPage() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      if (editingId) await api.put(`/users/${editingId}`, { name: formData.name, email: formData.email, role: formData.role })
-      else await api.post('/users', { ...formData, password: formData.password || '123456' })
+      if (editingId) {
+        await api.put(`/users/${editingId}`, { name: formData.name, email: formData.email, role: formData.role })
+      } else {
+        await api.post('/users', { ...formData, password: formData.password || '123456' })
+      }
+
       setIsModalOpen(false)
       fetchUsers()
-    } catch (err: any) { alert(err.message || 'Gagal menyimpan') }
+    } catch (err: any) { alert(err.response?.data?.message || err.message || 'Gagal menyimpan') }
     finally { setSubmitting(false) }
   }
 
@@ -131,9 +143,15 @@ export default function UsersPage() {
                             fontWeight: 900,
                             fontSize: '0.8125rem',
                             boxShadow: '0 4px 10px rgba(15, 23, 42, 0.1)',
+                            overflow: 'hidden',
+                            flexShrink: 0,
                           }}
                         >
-                          {u.profile_image ? <img src={u.profile_image} alt={u.name} style={{ width: '100%', height: '100%', borderRadius: '0.75rem', objectFit: 'cover' }} /> : u.name.charAt(0).toUpperCase()}
+                          {u.profile_image ? (
+                            <img src={getProfileImageUrl(u.profile_image)} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            u.name.charAt(0).toUpperCase()
+                          )}
                         </div>
                         <span style={{ color: '#0f172a', fontWeight: 800 }}>{u.name}</span>
                       </div>
@@ -239,3 +257,5 @@ export default function UsersPage() {
     </div>
   )
 }
+
+

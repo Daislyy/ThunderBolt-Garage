@@ -7,6 +7,7 @@ import {
   Wrench,
   CalendarCheck,
   Bell,
+  Star,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/vehicles',      label: 'Kendaraan',  icon: Car },
   { to: '/services',      label: 'Layanan',    icon: Wrench },
   { to: '/bookings',      label: 'Booking',    icon: CalendarCheck },
+  { to: '/ratings',       label: 'Rating',     icon: Star },
   { to: '/notifications', label: 'Notifikasi', icon: Bell },
 ]
 

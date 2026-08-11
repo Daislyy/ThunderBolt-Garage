@@ -1,5 +1,5 @@
 // services/authService.ts
-import { apiRequest, setToken, removeToken } from './api';
+import { apiRequest, setToken, removeToken, BASE_URL, getToken } from './api';
 
 export interface User {
   id: number;
@@ -56,4 +56,43 @@ export const authService = {
   async logout(): Promise<void> {
     await removeToken();
   },
+
+  async updateProfile(userId: number, data: { name?: string; email?: string }): Promise<User> {
+    await apiRequest(`/users/${userId}`, {
+      method: 'PUT',
+      body: data,
+    });
+    return await this.getMe();
+  },
+
+  async uploadProfileImage(userId: number, imageUri: string): Promise<string> {
+    const token = await getToken();
+    const formData = new FormData();
+
+    // Create file object from URI for React Native
+    const filename = imageUri.split('/').pop() || 'profile.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+    formData.append('profile_image', {
+      uri: imageUri,
+      name: filename,
+      type,
+    } as any);
+
+    const response = await fetch(`${BASE_URL}/users/${userId}/profile-image`, {
+      method: 'POST',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to upload profile image');
+    }
+    return result.data.profile_image;
+  },
 };
+

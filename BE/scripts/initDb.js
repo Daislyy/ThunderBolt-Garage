@@ -12,12 +12,15 @@ export async function initDb() {
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
-        profile_image TEXT NULL,
+        profile_image VARCHAR(255) NULL,
         role ENUM('customer', 'admin') DEFAULT 'customer',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Ensure profile_image column is VARCHAR(255) for existing databases
+    await db.query('ALTER TABLE users MODIFY COLUMN profile_image VARCHAR(255) NULL;').catch(() => {});
 
     // 2. Table services
     await db.query(`
@@ -80,6 +83,22 @@ export async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 6. Table ratings
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS ratings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        booking_id INT NOT NULL,
+        user_id INT NOT NULL,
+        service_id INT NOT NULL,
+        rating INT NOT NULL,
+        review TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
