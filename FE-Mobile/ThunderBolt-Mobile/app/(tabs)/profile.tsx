@@ -34,6 +34,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
+import { authService } from '../../services/authService';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -58,7 +59,7 @@ export default function ProfileScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.85,
@@ -67,6 +68,14 @@ export default function ProfileScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedUri = result.assets[0].uri;
         setAvatarUri(selectedUri);
+        if (user?.id) {
+          try {
+            await authService.updateProfile(user.id, { profile_image: selectedUri });
+            await refreshUser();
+          } catch (err) {
+            console.log('Error saving profile image to DB:', err);
+          }
+        }
         Alert.alert('Berhasil! 🎉', 'Foto profil berhasil diperbarui dari Galeri.');
       }
     } catch (error: any) {
@@ -84,6 +93,7 @@ export default function ProfileScreen() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.85,
@@ -92,6 +102,14 @@ export default function ProfileScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedUri = result.assets[0].uri;
         setAvatarUri(selectedUri);
+        if (user?.id) {
+          try {
+            await authService.updateProfile(user.id, { profile_image: selectedUri });
+            await refreshUser();
+          } catch (err) {
+            console.log('Error saving camera profile image to DB:', err);
+          }
+        }
         Alert.alert('Berhasil! 🎉', 'Foto profil berhasil diambil dari Kamera.');
       }
     } catch (error: any) {
@@ -136,12 +154,18 @@ export default function ProfileScreen() {
     }
     setIsSaving(true);
     try {
-      await refreshUser();
+      if (user?.id) {
+        await authService.updateProfile(user.id, {
+          name: editName.trim(),
+          email: editEmail.trim(),
+          profile_image: avatarUri,
+        });
+        await refreshUser();
+      }
       setIsEditModalVisible(false);
       Alert.alert('Berhasil', 'Profil Anda telah diperbarui!');
-    } catch {
-      Alert.alert('Informasi', 'Perubahan profil berhasil disimpan.');
-      setIsEditModalVisible(false);
+    } catch (error: any) {
+      Alert.alert('Gagal', error.message || 'Terjadi kesalahan saat menyimpan profil.');
     } finally {
       setIsSaving(false);
     }
@@ -231,7 +255,7 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
               onPress={() => router.push('/booking/create' as any)}
             >
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Car size={18} color={colors.primary} />
               </View>
               <View style={styles.menuTextContainer}>
@@ -245,7 +269,7 @@ export default function ProfileScreen() {
           {/* GROUP 2: Account & Activity */}
           <View style={styles.menuGroup}>
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={handleOpenEdit}>
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Edit3 size={18} color={colors.primaryDark} />
               </View>
               <Text style={styles.menuTitleOnly}>Edit Profil</Text>
@@ -255,7 +279,7 @@ export default function ProfileScreen() {
             <View style={styles.itemDivider} />
 
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={handlePickImageFromGallery}>
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <ImageIcon size={18} color={colors.primaryDark} />
               </View>
               <Text style={styles.menuTitleOnly}>Ubah Foto dari Galeri</Text>
@@ -269,7 +293,7 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
               onPress={() => router.push('/explore' as any)}
             >
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Wrench size={18} color={colors.primaryDark} />
               </View>
               <Text style={styles.menuTitleOnly}>Riwayat &amp; Status Servis</Text>
@@ -283,7 +307,7 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
               onPress={() => Alert.alert('Keamanan', 'Fitur ubah kata sandi dapat diakses via verifikasi email.')}
             >
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <ShieldCheck size={18} color={colors.primaryDark} />
               </View>
               <Text style={styles.menuTitleOnly}>Keamanan &amp; Kata Sandi</Text>
@@ -298,7 +322,7 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
               onPress={() => Alert.alert('Pengaturan', 'Pengaturan aplikasi ThunderBolt Garage v1.0.')}
             >
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Settings size={18} color={colors.primaryDark} />
               </View>
               <Text style={styles.menuTitleOnly}>Pengaturan</Text>
@@ -317,7 +341,7 @@ export default function ProfileScreen() {
                 )
               }
             >
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Headphones size={18} color={colors.primaryDark} />
               </View>
               <Text style={styles.menuTitleOnly}>Pusat Bantuan &amp; CS</Text>
@@ -331,7 +355,7 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
               onPress={() => Alert.alert('Beri Ulasan', 'Terima kasih telah menggunakan aplikasi ThunderBolt Garage!')}
             >
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Star size={18} color={colors.primaryDark} />
               </View>
               <Text style={styles.menuTitleOnly}>Beri Ulasan Aplikasi</Text>
@@ -345,7 +369,7 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
               onPress={() => Alert.alert('Tentang Aplikasi', 'ThunderBolt Garage Mobile App\nVersi 1.0.0 (Build 2026)')}
             >
-              <View style={[styles.iconCircle, { backgroundColor: colors.primaryTint }]}>
+              <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Info size={18} color={colors.primaryDark} />
               </View>
               <View style={styles.menuTextContainer}>
@@ -560,13 +584,13 @@ const styles = StyleSheet.create({
 
   /* Menu Groups */
   menuGroup: {
-    backgroundColor: '#FFF8F2', // Soft Orange Tint Background for Cards
+    backgroundColor: '#F8F9FA',
     borderRadius: 20,
     paddingVertical: 4,
     paddingHorizontal: 14,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#FFE4DC',
+    borderColor: '#F1F5F9',
   },
   logoutGroup: {
     backgroundColor: '#FFF5F5',
@@ -613,7 +637,7 @@ const styles = StyleSheet.create({
   },
   itemDivider: {
     height: 1,
-    backgroundColor: '#FFE4DC',
+    backgroundColor: '#F1F5F9',
     marginLeft: 50,
   },
 

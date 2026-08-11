@@ -46,6 +46,13 @@ export const authService = {
     return res.data!;
   },
 
+  async updateProfile(userId: number, data: { name?: string; email?: string; profile_image?: string | null }): Promise<void> {
+    await apiRequest(`/users/${userId}`, {
+      method: 'PUT',
+      body: data,
+    });
+  },
+
   async logout(): Promise<void> {
     await removeToken();
   },

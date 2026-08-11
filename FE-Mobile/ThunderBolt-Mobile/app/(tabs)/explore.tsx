@@ -120,7 +120,7 @@ export default function ServisScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ---------- Loading ---------- */}
+        {/*loading */}
         {isLoading && (
           <View style={styles.loadingState}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -179,7 +179,7 @@ export default function ServisScreen() {
           </View>
         )}
 
-        {/* ---------- Riwayat selesai ---------- */}
+        {/* riwayat selesai  */}
         {!isLoading && finishedBookings.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionHeading}>Riwayat</Text>
@@ -218,7 +218,7 @@ export default function ServisScreen() {
 
         {!isLoading && !error && bookings.length === 0 && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateEmoji}>🔧</Text>
+            <Text style={styles.emptyStateEmoji}></Text>
             <Text style={styles.emptyStateTitle}>Belum ada booking servis</Text>
             <Text style={styles.emptyStateText}>Buat booking servis pertamamu sekarang!</Text>
             <TouchableOpacity
