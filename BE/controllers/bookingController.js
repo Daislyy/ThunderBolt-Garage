@@ -68,7 +68,7 @@ export const bookingController = {
         return res.status(400).json({ success: false, message: 'Status is required' });
       }
 
-      // Admin update status: kalau admin mengubah status menjadi "Selesai", ubah otomatis jadi "Menunggu Konfirmasi"
+   
       if (status === 'Selesai') {
         status = 'Menunggu Konfirmasi';
       }
