@@ -506,7 +506,7 @@ export default function BookingsPage() {
                       }}
                     >
                       <Plus style={{ width: '0.875rem', height: '0.875rem' }} />
-                      <span>+ Tambah Sparepart</span>
+                      <span>Tambah Sparepart</span>
                       <ChevronDown style={{ width: '0.875rem', height: '0.875rem', transform: isSparepartDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
                     </button>
 
