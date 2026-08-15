@@ -1,7 +1,7 @@
 import { Clock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 interface Props {
-  status: 'Menunggu' | 'Diproses' | 'Selesai' | string
+  status: 'Menunggu' | 'Diproses' | 'Menunggu Konfirmasi' | 'Selesai' | string
 }
 
 const statusConfigs: Record<string, { label: string; text: string; bg: string; border: string; dot: string; icon: typeof Clock }> = {
@@ -20,6 +20,14 @@ const statusConfigs: Record<string, { label: string; text: string; bg: string; b
     border: '#dbeafe',    // blue-100
     dot: '#3b82f6',       // blue-500
     icon: Loader2,
+  },
+  'Menunggu Konfirmasi': {
+    label: 'Menunggu Konfirmasi',
+    text: '#7c3aed',      // violet-600
+    bg: '#f5f3ff',        // violet-50
+    border: '#ede9fe',    // violet-100
+    dot: '#8b5cf6',       // violet-500
+    icon: Clock,
   },
   Selesai: {
     label: 'Selesai',

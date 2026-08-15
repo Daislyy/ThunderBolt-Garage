@@ -87,6 +87,7 @@ interface Stats {
   notifications: number
   menunggu: number
   diproses: number
+  menungguKonfirmasi: number
   selesai: number
   avgRating: string
   totalRatings: number
@@ -105,7 +106,7 @@ interface Booking {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({ users: 0, services: 0, bookings: 0, notifications: 0, menunggu: 0, diproses: 0, selesai: 0, avgRating: '0.0', totalRatings: 0 })
+  const [stats, setStats] = useState<Stats>({ users: 0, services: 0, bookings: 0, notifications: 0, menunggu: 0, diproses: 0, menungguKonfirmasi: 0, selesai: 0, avgRating: '0.0', totalRatings: 0 })
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -133,6 +134,7 @@ export default function DashboardPage() {
           notifications: notifRes.data.data?.length ?? 0,
           menunggu: bookings.filter((b) => b.status === 'Menunggu').length,
           diproses: bookings.filter((b) => b.status === 'Diproses').length,
+          menungguKonfirmasi: bookings.filter((b) => b.status === 'Menunggu Konfirmasi').length,
           selesai:  bookings.filter((b) => b.status === 'Selesai').length,
           avgRating,
           totalRatings,
@@ -158,14 +160,15 @@ export default function DashboardPage() {
   const donutSegments: DonutSegment[] = [
     { label: 'Menunggu Review', value: stats.menunggu, color: '#f59e0b' },
     { label: 'Sedang Diproses', value: stats.diproses, color: '#3b82f6' },
+    { label: 'Menunggu Konfirmasi', value: stats.menungguKonfirmasi, color: '#8b5cf6' },
     { label: 'Pengerjaan Selesai', value: stats.selesai, color: '#10b981' },
   ]
 
   const quickStats = [
     { label: 'Sedang Diproses', value: stats.diproses, icon: Loader2,       color: '#2563eb', bg: '#eff6ff' },
+    { label: 'Menunggu Konfirmasi', value: stats.menungguKonfirmasi, icon: Clock, color: '#7c3aed', bg: '#f5f3ff' },
     { label: 'Pengerjaan Selesai', value: stats.selesai, icon: CheckCircle2,  color: '#059669', bg: '#ecfdf5' },
     { label: 'Total Layanan',   value: stats.services, icon: Wrench,        color: '#ea580c', bg: '#fff7ed' },
-    { label: 'Total Pelanggan', value: stats.users,    icon: Users,         color: '#475569', bg: '#f8fafc' },
   ]
 
   return (

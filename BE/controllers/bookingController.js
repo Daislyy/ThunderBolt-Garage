@@ -61,11 +61,16 @@ export const bookingController = {
 
   async updateBookingStatus(req, res) {
     try {
-      const { status } = req.body;
+      let { status } = req.body;
       const bookingId = req.params.id;
 
       if (!status) {
         return res.status(400).json({ success: false, message: 'Status is required' });
+      }
+
+      // Admin update status: kalau admin mengubah status menjadi "Selesai", ubah otomatis jadi "Menunggu Konfirmasi"
+      if (status === 'Selesai') {
+        status = 'Menunggu Konfirmasi';
       }
 
       const updated = await bookingService.updateBookingStatus(bookingId, { status });
@@ -75,16 +80,21 @@ export const bookingController = {
 
       const booking = await bookingService.getBookingById(bookingId);
       if (booking) {
+        let notificationMessage = `Your booking ${booking.booking_code} status changed to ${status}.`;
+        if (status === 'Menunggu Konfirmasi') {
+          notificationMessage = 'Kendaraan Anda sudah selesai diservis. Mohon cek rincian tagihan dan konfirmasi.';
+        }
+
         await notificationService.createNotification({
           user_id: booking.user_id,
-          title: 'Booking Status Updated',
-          message: `Your booking ${booking.booking_code} status changed to ${status}.`,
+          title: status === 'Menunggu Konfirmasi' ? 'Servis Selesai - Menunggu Konfirmasi' : 'Booking Status Updated',
+          message: notificationMessage,
           type: 'booking_status',
           reference_id: booking.id
         });
       }
 
-      res.json({ success: true, message: 'Booking status updated successfully' });
+      res.json({ success: true, message: 'Booking status updated successfully', data: { status } });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }

@@ -293,6 +293,7 @@ export default function BookingsPage() {
             <option value="all">Semua Status</option>
             <option value="Menunggu">Menunggu</option>
             <option value="Diproses">Diproses</option>
+            <option value="Menunggu Konfirmasi">Menunggu Konfirmasi</option>
             <option value="Selesai">Selesai</option>
           </select>
         </div>
@@ -689,7 +690,7 @@ export default function BookingsPage() {
                 <select className="klesi-select" value={newStatus} onChange={e => setNewStatus(e.target.value)}>
                   <option value="Menunggu">Menunggu</option>
                   <option value="Diproses">Diproses</option>
-                  <option value="Selesai">Selesai</option>
+                  <option value="Menunggu Konfirmasi">Menunggu Konfirmasi</option>
                 </select>
               </div>
 
