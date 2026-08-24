@@ -2,84 +2,133 @@ import db from '../config/database.js';
 
 export const ratingService = {
   async getAllRatings() {
-    const [rows] = await db.query(
-      `SELECT r.*,
-              u.name as customer_name, u.email as customer_email,
-              s.name as service_name,
-              b.booking_code
-       FROM ratings r
-       JOIN users u ON r.user_id = u.id
-       JOIN services s ON r.service_id = s.id
-       JOIN bookings b ON r.booking_id = b.id
-       ORDER BY r.id DESC`
-    );
-    return rows;
+    const { data, error } = await db
+      .from('ratings')
+      .select(`
+        *,
+        users(name, email),
+        services(name),
+        bookings(booking_code)
+      `)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).map(r => ({
+      ...r,
+      customer_name: r.users?.name,
+      customer_email: r.users?.email,
+      service_name: r.services?.name,
+      booking_code: r.bookings?.booking_code,
+      users: undefined,
+      services: undefined,
+      bookings: undefined
+    }));
   },
 
   async getRatingById(id) {
-    const [rows] = await db.query(
-      `SELECT r.*,
-              u.name as customer_name, u.email as customer_email,
-              s.name as service_name,
-              b.booking_code
-       FROM ratings r
-       JOIN users u ON r.user_id = u.id
-       JOIN services s ON r.service_id = s.id
-       JOIN bookings b ON r.booking_id = b.id
-       WHERE r.id = ?`,
-      [id]
-    );
-    return rows[0] || null;
+    const { data, error } = await db
+      .from('ratings')
+      .select(`
+        *,
+        users(name, email),
+        services(name),
+        bookings(booking_code)
+      `)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+
+    return {
+      ...data,
+      customer_name: data.users?.name,
+      customer_email: data.users?.email,
+      service_name: data.services?.name,
+      booking_code: data.bookings?.booking_code,
+      users: undefined,
+      services: undefined,
+      bookings: undefined
+    };
   },
 
   async getRatingsByService(serviceId) {
-    const [rows] = await db.query(
-      `SELECT r.*,
-              u.name as customer_name, u.email as customer_email,
-              s.name as service_name,
-              b.booking_code
-       FROM ratings r
-       JOIN users u ON r.user_id = u.id
-       JOIN services s ON r.service_id = s.id
-       JOIN bookings b ON r.booking_id = b.id
-       WHERE r.service_id = ?
-       ORDER BY r.id DESC`,
-      [serviceId]
-    );
-    return rows;
+    const { data, error } = await db
+      .from('ratings')
+      .select(`
+        *,
+        users(name, email),
+        services(name),
+        bookings(booking_code)
+      `)
+      .eq('service_id', serviceId)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).map(r => ({
+      ...r,
+      customer_name: r.users?.name,
+      customer_email: r.users?.email,
+      service_name: r.services?.name,
+      booking_code: r.bookings?.booking_code,
+      users: undefined,
+      services: undefined,
+      bookings: undefined
+    }));
   },
 
   async getRatingsByUser(userId) {
-    const [rows] = await db.query(
-      `SELECT r.*,
-              u.name as customer_name, u.email as customer_email,
-              s.name as service_name,
-              b.booking_code
-       FROM ratings r
-       JOIN users u ON r.user_id = u.id
-       JOIN services s ON r.service_id = s.id
-       JOIN bookings b ON r.booking_id = b.id
-       WHERE r.user_id = ?
-       ORDER BY r.id DESC`,
-      [userId]
-    );
-    return rows;
+    const { data, error } = await db
+      .from('ratings')
+      .select(`
+        *,
+        users(name, email),
+        services(name),
+        bookings(booking_code)
+      `)
+      .eq('user_id', userId)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).map(r => ({
+      ...r,
+      customer_name: r.users?.name,
+      customer_email: r.users?.email,
+      service_name: r.services?.name,
+      booking_code: r.bookings?.booking_code,
+      users: undefined,
+      services: undefined,
+      bookings: undefined
+    }));
   },
 
   async createRating(ratingData) {
     const { booking_id, user_id, service_id, rating, review } = ratingData;
 
-    const [result] = await db.query(
-      `INSERT INTO ratings (booking_id, user_id, service_id, rating, review)
-       VALUES (?, ?, ?, ?, ?)`,
-      [booking_id, user_id, service_id, rating, review || null]
-    );
+    const { data, error } = await db
+      .from('ratings')
+      .insert({
+        booking_id, user_id, service_id, rating,
+        review: review || null
+      })
+      .select('*')
+      .single();
 
-    return { id: result.insertId, ...ratingData };
+    if (error) throw new Error(error.message);
+    return data;
   },
 
   async deleteRating(id) {
-    const [result] = await db.query('DELETE FROM ratings WHERE id = ?', [id]);
-    return result.affectedRows > 0;
+    const { data, error } = await db
+      .from('ratings')
+      .delete()
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   }
 };

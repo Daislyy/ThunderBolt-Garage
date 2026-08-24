@@ -2,77 +2,111 @@ import db from '../config/database.js';
 
 export const sparepartService = {
   async getAllSpareparts() {
-    const [rows] = await db.query('SELECT id, name, price, created_at, updated_at FROM spareparts ORDER BY id DESC');
-    return rows.map(r => ({
+    const { data, error } = await db
+      .from('spareparts')
+      .select('id, name, price, created_at, updated_at')
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []).map(r => ({
       ...r,
       price: Number(r.price)
     }));
   },
 
   async getSparepartById(id) {
-    const [rows] = await db.query('SELECT id, name, price, created_at, updated_at FROM spareparts WHERE id = ?', [id]);
-    if (rows.length === 0) return null;
+    const { data, error } = await db
+      .from('spareparts')
+      .select('id, name, price, created_at, updated_at')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) return null;
     return {
-      ...rows[0],
-      price: Number(rows[0].price)
+      ...data,
+      price: Number(data.price)
     };
   },
 
   async createSparepart(sparepartData) {
     const { name, price } = sparepartData;
-    const [result] = await db.query(
-      'INSERT INTO spareparts (name, price) VALUES (?, ?)',
-      [name, Number(price)]
-    );
+
+    const { data, error } = await db
+      .from('spareparts')
+      .insert({ name, price: Number(price) })
+      .select('id, name, price')
+      .single();
+
+    if (error) throw new Error(error.message);
     return {
-      id: result.insertId,
-      name,
-      price: Number(price)
+      ...data,
+      price: Number(data.price)
     };
   },
 
   async updateSparepart(id, sparepartData) {
-    const { name, price } = sparepartData;
-    const [result] = await db.query(
-      'UPDATE spareparts SET name = COALESCE(?, name), price = COALESCE(?, price) WHERE id = ?',
-      [name !== undefined ? name : null, price !== undefined ? Number(price) : null, id]
-    );
-    return result.affectedRows > 0;
+    const updateData = {};
+    if (sparepartData.name !== undefined) updateData.name = sparepartData.name;
+    if (sparepartData.price !== undefined) updateData.price = Number(sparepartData.price);
+
+    if (Object.keys(updateData).length === 0) return false;
+
+    const { data, error } = await db
+      .from('spareparts')
+      .update(updateData)
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   },
 
   async deleteSparepart(id) {
     // Check if sparepart is referenced in booking_spareparts
-    const [check] = await db.query('SELECT COUNT(*) as count FROM booking_spareparts WHERE sparepart_id = ?', [id]);
-    if (check[0].count > 0) {
+    const { data: check, error: checkError } = await db
+      .from('booking_spareparts')
+      .select('id')
+      .eq('sparepart_id', id);
+
+    if (checkError) throw new Error(checkError.message);
+    if (check && check.length > 0) {
       const error = new Error('Sparepart tidak dapat dihapus karena tercatat dalam riwayat booking kendaraan.');
       error.statusCode = 400;
       throw error;
     }
 
-    const [result] = await db.query('DELETE FROM spareparts WHERE id = ?', [id]);
-    return result.affectedRows > 0;
+    const { data, error } = await db
+      .from('spareparts')
+      .delete()
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   },
 
   async getBookingSpareparts(bookingId) {
-    const [rows] = await db.query(
-      `SELECT bs.id, bs.booking_id, bs.sparepart_id, bs.quantity, bs.notes,
-              s.name, s.price, (bs.quantity * s.price) as subtotal
-       FROM booking_spareparts bs
-       JOIN spareparts s ON bs.sparepart_id = s.id
-       WHERE bs.booking_id = ?
-       ORDER BY bs.id ASC`,
-      [bookingId]
-    );
+    const { data: rows, error } = await db
+      .from('booking_spareparts')
+      .select(`
+        id, booking_id, sparepart_id, quantity, notes,
+        spareparts(name, price)
+      `)
+      .eq('booking_id', bookingId)
+      .order('id', { ascending: true });
 
-    const formattedSpareparts = rows.map(r => ({
+    if (error) throw new Error(error.message);
+
+    const formattedSpareparts = (rows || []).map(r => ({
       id: r.id,
       booking_id: r.booking_id,
       sparepart_id: r.sparepart_id,
-      name: r.name,
-      price: Number(r.price),
+      name: r.spareparts?.name,
+      price: Number(r.spareparts?.price || 0),
       quantity: r.quantity,
       notes: r.notes || '',
-      subtotal: Number(r.subtotal)
+      subtotal: r.quantity * Number(r.spareparts?.price || 0)
     }));
 
     const totalPrice = formattedSpareparts.reduce((sum, item) => sum + item.subtotal, 0);
@@ -84,35 +118,30 @@ export const sparepartService = {
   },
 
   async saveBookingSpareparts(bookingId, sparepartsArray = []) {
-    const connection = await db.getConnection();
-    try {
-      await connection.beginTransaction();
+    // Delete existing spareparts for this booking
+    const { error: deleteError } = await db
+      .from('booking_spareparts')
+      .delete()
+      .eq('booking_id', bookingId);
 
-      // Delete existing spareparts for this booking
-      await connection.query('DELETE FROM booking_spareparts WHERE booking_id = ?', [bookingId]);
+    if (deleteError) throw new Error(deleteError.message);
 
-      // Insert new spareparts if provided
-      if (Array.isArray(sparepartsArray) && sparepartsArray.length > 0) {
-        const values = sparepartsArray.map(item => [
-          bookingId,
-          item.sparepart_id,
-          item.quantity || 1,
-          item.notes || null
-        ]);
+    // Insert new spareparts if provided
+    if (Array.isArray(sparepartsArray) && sparepartsArray.length > 0) {
+      const insertData = sparepartsArray.map(item => ({
+        booking_id: bookingId,
+        sparepart_id: item.sparepart_id,
+        quantity: item.quantity || 1,
+        notes: item.notes || null
+      }));
 
-        await connection.query(
-          'INSERT INTO booking_spareparts (booking_id, sparepart_id, quantity, notes) VALUES ?',
-          [values]
-        );
-      }
+      const { error: insertError } = await db
+        .from('booking_spareparts')
+        .insert(insertData);
 
-      await connection.commit();
-      return true;
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+      if (insertError) throw new Error(insertError.message);
     }
+
+    return true;
   }
 };

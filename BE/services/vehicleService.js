@@ -2,62 +2,103 @@ import db from '../config/database.js';
 
 export const vehicleService = {
   async getAllVehicles() {
-    const [rows] = await db.query(
-      `SELECT v.*, u.name as owner_name, u.email as owner_email 
-       FROM vehicles v 
-       JOIN users u ON v.user_id = u.id 
-       ORDER BY v.id DESC`
-    );
-    return rows;
+    const { data, error } = await db
+      .from('vehicles')
+      .select(`
+        *,
+        users(name, email)
+      `)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    // Flatten nested users object to match frontend expectations
+    return (data || []).map(v => ({
+      ...v,
+      owner_name: v.users?.name,
+      owner_email: v.users?.email,
+      users: undefined
+    }));
   },
 
   async getVehiclesByUserId(userId) {
-    const [rows] = await db.query(
-      'SELECT * FROM vehicles WHERE user_id = ? ORDER BY id DESC',
-      [userId]
-    );
-    return rows;
+    const { data, error } = await db
+      .from('vehicles')
+      .select('*')
+      .eq('user_id', userId)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data || [];
   },
 
   async getVehicleById(id) {
-    const [rows] = await db.query(
-      `SELECT v.*, u.name as owner_name, u.email as owner_email 
-       FROM vehicles v 
-       JOIN users u ON v.user_id = u.id 
-       WHERE v.id = ?`,
-      [id]
-    );
-    return rows[0] || null;
+    const { data, error } = await db
+      .from('vehicles')
+      .select(`
+        *,
+        users(name, email)
+      `)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+
+    return {
+      ...data,
+      owner_name: data.users?.name,
+      owner_email: data.users?.email,
+      users: undefined
+    };
   },
 
   async createVehicle(vehicleData) {
     const { user_id, brand, model, year, license_plate, transmission, image } = vehicleData;
-    const [result] = await db.query(
-      `INSERT INTO vehicles (user_id, brand, model, year, license_plate, transmission, image)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [user_id, brand, model, year, license_plate, transmission || null, image || null]
-    );
-    return { id: result.insertId, ...vehicleData };
+
+    const { data, error } = await db
+      .from('vehicles')
+      .insert({
+        user_id, brand, model, year, license_plate,
+        transmission: transmission || null,
+        image: image || null
+      })
+      .select('*')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
   },
 
   async updateVehicle(id, vehicleData) {
-    const { brand, model, year, license_plate, transmission, image } = vehicleData;
-    const [result] = await db.query(
-      `UPDATE vehicles SET 
-        brand = COALESCE(?, brand),
-        model = COALESCE(?, model),
-        year = COALESCE(?, year),
-        license_plate = COALESCE(?, license_plate),
-        transmission = COALESCE(?, transmission),
-        image = COALESCE(?, image)
-       WHERE id = ?`,
-      [brand, model, year, license_plate, transmission, image, id]
-    );
-    return result.affectedRows > 0;
+    const updateData = {};
+    if (vehicleData.brand !== undefined) updateData.brand = vehicleData.brand;
+    if (vehicleData.model !== undefined) updateData.model = vehicleData.model;
+    if (vehicleData.year !== undefined) updateData.year = vehicleData.year;
+    if (vehicleData.license_plate !== undefined) updateData.license_plate = vehicleData.license_plate;
+    if (vehicleData.transmission !== undefined) updateData.transmission = vehicleData.transmission;
+    if (vehicleData.image !== undefined) updateData.image = vehicleData.image;
+
+    if (Object.keys(updateData).length === 0) return false;
+
+    const { data, error } = await db
+      .from('vehicles')
+      .update(updateData)
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   },
 
   async deleteVehicle(id) {
-    const [result] = await db.query('DELETE FROM vehicles WHERE id = ?', [id]);
-    return result.affectedRows > 0;
+    const { data, error } = await db
+      .from('vehicles')
+      .delete()
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   }
 };

@@ -10,8 +10,13 @@ export const authService = {
     const { name, email, password, profile_image, role = 'customer' } = userData;
 
     // Check if user already exists
-    const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
-    if (existing.length > 0) {
+    const { data: existing, error: checkError } = await db
+      .from('users')
+      .select('id')
+      .eq('email', email);
+
+    if (checkError) throw new Error(checkError.message);
+    if (existing && existing.length > 0) {
       throw new Error('Email is already registered');
     }
 
@@ -19,12 +24,15 @@ export const authService = {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Insert user into DB
-    const [result] = await db.query(
-      'INSERT INTO users (name, email, password, profile_image, role) VALUES (?, ?, ?, ?, ?)',
-      [name, email, hashedPassword, profile_image || null, role]
-    );
+    const { data, error } = await db
+      .from('users')
+      .insert({ name, email, password: hashedPassword, profile_image: profile_image || null, role })
+      .select('id')
+      .single();
 
-    const userId = result.insertId;
+    if (error) throw new Error(error.message);
+
+    const userId = data.id;
 
     // Generate JWT token
     const token = jwt.sign(
@@ -47,8 +55,13 @@ export const authService = {
 
   async login(email, password) {
     // Find user by email
-    const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (rows.length === 0) {
+    const { data: rows, error } = await db
+      .from('users')
+      .select('*')
+      .eq('email', email);
+
+    if (error) throw new Error(error.message);
+    if (!rows || rows.length === 0) {
       throw new Error('Invalid email or password');
     }
 
@@ -81,12 +94,13 @@ export const authService = {
   },
 
   async getMe(userId) {
-    const [rows] = await db.query(
-      'SELECT id, name, email, profile_image, role, created_at, updated_at FROM users WHERE id = ?',
-      [userId]
-    );
+    const { data: rows, error } = await db
+      .from('users')
+      .select('id, name, email, profile_image, role, created_at, updated_at')
+      .eq('id', userId);
 
-    if (rows.length === 0) {
+    if (error) throw new Error(error.message);
+    if (!rows || rows.length === 0) {
       throw new Error('User not found');
     }
 

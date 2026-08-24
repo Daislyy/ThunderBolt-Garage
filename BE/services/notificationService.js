@@ -2,33 +2,52 @@ import db from '../config/database.js';
 
 export const notificationService = {
   async getNotificationsByUserId(userId) {
-    const [rows] = await db.query(
-      'SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC',
-      [userId]
-    );
-    return rows;
+    const { data, error } = await db
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data || [];
   },
 
   async createNotification(notificationData) {
     const { user_id, title, message, type = 'system', reference_id } = notificationData;
-    const [result] = await db.query(
-      `INSERT INTO notifications (user_id, title, message, type, reference_id, is_read)
-       VALUES (?, ?, ?, ?, ?, FALSE)`,
-      [user_id, title, message, type, reference_id || null]
-    );
-    return { id: result.insertId, ...notificationData, is_read: false };
+
+    const { data, error } = await db
+      .from('notifications')
+      .insert({
+        user_id, title, message, type,
+        reference_id: reference_id || null,
+        is_read: false
+      })
+      .select('*')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
   },
 
   async markAsRead(id) {
-    const [result] = await db.query(
-      'UPDATE notifications SET is_read = TRUE WHERE id = ?',
-      [id]
-    );
-    return result.affectedRows > 0;
+    const { data, error } = await db
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   },
 
   async deleteNotification(id) {
-    const [result] = await db.query('DELETE FROM notifications WHERE id = ?', [id]);
-    return result.affectedRows > 0;
+    const { data, error } = await db
+      .from('notifications')
+      .delete()
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   }
 };

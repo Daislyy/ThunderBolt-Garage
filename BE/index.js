@@ -63,22 +63,22 @@ app.use((req, res) => {
 
 import { initDb } from './scripts/initDb.js';
 
-// Test database connection and initialize tables on startup
-db.getConnection()
-  .then(async (conn) => {
-    console.log(`Database connected successfully to ${process.env.DB_NAME || 'defaultdb'} (${process.env.DB_HOST})`);
-    conn.release();
+// Test Supabase connection and initialize seed data on startup
+(async () => {
+  try {
+    const { data, error } = await db.from('users').select('id').limit(1);
+    if (error) throw error;
+    console.log(`Supabase connected successfully (${process.env.SUPABASE_URL})`);
     try {
       await initDb();
     } catch (e) {
       console.error('Database auto-initialization error:', e.message);
     }
-  })
-  .catch((err) => {
-    console.warn('Database connection error:', err.message);
-  });
+  } catch (err) {
+    console.warn('Supabase connection error:', err.message);
+  }
+})();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://0.0.0.0:${PORT} (accessible via local network IP)`);
 });
-

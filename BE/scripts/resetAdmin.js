@@ -10,21 +10,34 @@ const newPassword = 'Admin@1234';
 async function resetAdmin() {
   try {
     const hashed = await bcrypt.hash(newPassword, 10);
-    const [result] = await db.query(
-      'UPDATE users SET password = ?, role = ? WHERE email = ?',
-      [hashed, 'admin', email]
-    );
 
-    if (result.affectedRows === 0) {
+    const { data: updated, error: updateError } = await db
+      .from('users')
+      .update({ password: hashed, role: 'admin' })
+      .eq('email', email)
+      .select('id');
+
+    if (updateError) throw new Error(updateError.message);
+
+    if (!updated || updated.length === 0) {
       // User doesn't exist, create one
-      const [ins] = await db.query(
-        'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-        ['Admin ThunderBolt', email, hashed, 'admin']
-      );
+      const { data: inserted, error: insertError } = await db
+        .from('users')
+        .insert({
+          name: 'Admin ThunderBolt',
+          email,
+          password: hashed,
+          role: 'admin'
+        })
+        .select('id')
+        .single();
+
+      if (insertError) throw new Error(insertError.message);
+
       console.log('');
       console.log('✅ Admin baru berhasil dibuat!');
       console.log('─────────────────────────────────');
-      console.log('🆔 User ID :', ins.insertId);
+      console.log('🆔 User ID :', inserted.id);
     } else {
       console.log('');
       console.log('✅ Password admin berhasil direset!');

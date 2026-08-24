@@ -8,77 +8,133 @@ const generateBookingCode = () => {
 
 export const bookingService = {
   async getAllBookings() {
-    const [rows] = await db.query(
-      `SELECT b.*, 
-              u.name as customer_name, u.email as customer_email,
-              v.brand as vehicle_brand, v.model as vehicle_model,
-              v.year as vehicle_year, v.license_plate, v.transmission,
-              s.name as service_name, s.description as service_description
-       FROM bookings b
-       JOIN users u ON b.user_id = u.id
-       JOIN vehicles v ON b.vehicle_id = v.id
-       JOIN services s ON b.service_id = s.id
-       ORDER BY b.id DESC`
-    );
-    return rows;
+    const { data, error } = await db
+      .from('bookings')
+      .select(`
+        *,
+        users(name, email),
+        vehicles(brand, model, year, license_plate, transmission),
+        services(name, description)
+      `)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    // Flatten nested objects to match frontend expectations
+    return (data || []).map(b => ({
+      ...b,
+      customer_name: b.users?.name,
+      customer_email: b.users?.email,
+      vehicle_brand: b.vehicles?.brand,
+      vehicle_model: b.vehicles?.model,
+      vehicle_year: b.vehicles?.year,
+      license_plate: b.vehicles?.license_plate,
+      transmission: b.vehicles?.transmission,
+      service_name: b.services?.name,
+      service_description: b.services?.description,
+      users: undefined,
+      vehicles: undefined,
+      services: undefined
+    }));
   },
 
   async getBookingsByUserId(userId) {
-    const [rows] = await db.query(
-      `SELECT b.*, 
-              v.brand as vehicle_brand, v.model as vehicle_model,
-              v.year as vehicle_year, v.license_plate, v.transmission,
-              s.name as service_name, s.description as service_description
-       FROM bookings b
-       JOIN vehicles v ON b.vehicle_id = v.id
-       JOIN services s ON b.service_id = s.id
-       WHERE b.user_id = ?
-       ORDER BY b.id DESC`,
-      [userId]
-    );
-    return rows;
+    const { data, error } = await db
+      .from('bookings')
+      .select(`
+        *,
+        vehicles(brand, model, year, license_plate, transmission),
+        services(name, description)
+      `)
+      .eq('user_id', userId)
+      .order('id', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).map(b => ({
+      ...b,
+      vehicle_brand: b.vehicles?.brand,
+      vehicle_model: b.vehicles?.model,
+      vehicle_year: b.vehicles?.year,
+      license_plate: b.vehicles?.license_plate,
+      transmission: b.vehicles?.transmission,
+      service_name: b.services?.name,
+      service_description: b.services?.description,
+      vehicles: undefined,
+      services: undefined
+    }));
   },
 
   async getBookingById(id) {
-    const [rows] = await db.query(
-      `SELECT b.*, 
-              u.name as customer_name, u.email as customer_email,
-              v.brand as vehicle_brand, v.model as vehicle_model,
-              v.year as vehicle_year, v.license_plate, v.transmission,
-              s.name as service_name, s.description as service_description
-       FROM bookings b
-       JOIN users u ON b.user_id = u.id
-       JOIN vehicles v ON b.vehicle_id = v.id
-       JOIN services s ON b.service_id = s.id
-       WHERE b.id = ?`,
-      [id]
-    );
-    return rows[0] || null;
+    const { data, error } = await db
+      .from('bookings')
+      .select(`
+        *,
+        users(name, email),
+        vehicles(brand, model, year, license_plate, transmission),
+        services(name, description)
+      `)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+
+    return {
+      ...data,
+      customer_name: data.users?.name,
+      customer_email: data.users?.email,
+      vehicle_brand: data.vehicles?.brand,
+      vehicle_model: data.vehicles?.model,
+      vehicle_year: data.vehicles?.year,
+      license_plate: data.vehicles?.license_plate,
+      transmission: data.vehicles?.transmission,
+      service_name: data.services?.name,
+      service_description: data.services?.description,
+      users: undefined,
+      vehicles: undefined,
+      services: undefined
+    };
   },
 
   async createBooking(bookingData) {
     const { user_id, vehicle_id, service_id, booking_date, booking_time, notes } = bookingData;
     const booking_code = generateBookingCode();
     
-    const [result] = await db.query(
-      `INSERT INTO bookings (booking_code, user_id, vehicle_id, service_id, booking_date, booking_time, notes, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'Menunggu')`,
-      [booking_code, user_id, vehicle_id, service_id, booking_date, booking_time, notes || null]
-    );
-    
-    return { id: result.insertId, booking_code, ...bookingData, status: 'Menunggu' };
+    const { data, error } = await db
+      .from('bookings')
+      .insert({
+        booking_code, user_id, vehicle_id, service_id,
+        booking_date, booking_time,
+        notes: notes || null,
+        status: 'Menunggu'
+      })
+      .select('id, booking_code')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return { id: data.id, booking_code: data.booking_code, ...bookingData, status: 'Menunggu' };
   },
 
   async updateBookingStatus(id, { status }) {
-    const [result] = await db.query(
-      `UPDATE bookings SET status = ? WHERE id = ?`,
-      [status, id]
-    );
-    return result.affectedRows > 0;
+    const { data, error } = await db
+      .from('bookings')
+      .update({ status })
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   },
 
   async deleteBooking(id) {
-    const [result] = await db.query('DELETE FROM bookings WHERE id = ?', [id]);
-    return result.affectedRows > 0;
+    const { data, error } = await db
+      .from('bookings')
+      .delete()
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data && data.length > 0;
   }
 };
