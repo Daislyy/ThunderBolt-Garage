@@ -1,0 +1,975 @@
+/* ThunderBolt Garage - User Web Styles */
+
+:root {
+  --tb-orange: #f97316;
+  --tb-orange-hover: #ea580c;
+  --tb-orange-light: #fff7ed;
+  --tb-orange-border: #ffedd5;
+  --tb-dark: #0f172a;
+  --tb-slate: #1e293b;
+  --tb-gray-text: #475569;
+  --tb-gray-light: #94a3b8;
+  --tb-border: #e2e8f0;
+  --tb-bg-soft: #f8fafc;
+}
+
+.tb-user-page {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #0f172a;
+  background-color: #ffffff;
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+.tb-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* ============================================================
+   NAVBAR (Clean Light Glassmorphism - Selaras & Modern)
+   ============================================================ */
+.tb-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.tb-navbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4.25rem;
+}
+
+.tb-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  text-decoration: none;
+  color: #0f172a;
+  font-weight: 900;
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.tb-brand-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  background-color: #fff7ed;
+  color: #f97316;
+  border-radius: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ffedd5;
+}
+
+.tb-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tb-nav-links a {
+  text-decoration: none;
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.tb-nav-links a:hover {
+  color: #f97316;
+}
+
+.tb-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tb-btn-ghost {
+  background: transparent;
+  color: #475569;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.tb-btn-ghost:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.tb-btn-user-badge {
+  background-color: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+  padding: 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.tb-btn-user-badge:hover {
+  background-color: #ffedd5;
+  border-color: #fdba74;
+  transform: translateY(-1px);
+}
+
+.tb-mobile-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #334155;
+  padding: 0.25rem;
+}
+
+.tb-mobile-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem 1.5rem;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  gap: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+.tb-mobile-link {
+  color: #334155;
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* ============================================================
+   BUTTONS & COMMON UI
+   ============================================================ */
+.tb-btn-primary {
+  background-color: #f97316;
+  color: #ffffff;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tb-btn-primary:hover {
+  background-color: #ea580c;
+  transform: translateY(-1px);
+}
+
+.tb-btn-secondary {
+  background-color: #ffffff;
+  color: #334155;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tb-btn-secondary:hover {
+  background-color: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.tb-btn-dark {
+  background-color: #0f172a;
+  color: #ffffff;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #0f172a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tb-btn-dark:hover {
+  background-color: #1e293b;
+  transform: translateY(-1px);
+}
+
+.tb-btn-lg {
+  padding: 0.8125rem 1.625rem;
+  font-size: 0.9375rem;
+  border-radius: 0.5rem;
+}
+
+.tb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  background-color: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #ffedd5;
+  margin-bottom: 0.875rem;
+}
+
+.tb-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #22c55e;
+}
+
+.tb-text-orange {
+  color: #f97316;
+}
+
+/* ============================================================
+   SECTIONS HEADERS & BASE
+   ============================================================ */
+.tb-section {
+  padding: 4.5rem 0;
+}
+
+.tb-section-header {
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto 3rem auto;
+}
+
+.tb-section-title {
+  font-size: 2.125rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  margin-bottom: 0.625rem;
+}
+
+.tb-section-desc {
+  font-size: 1rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   HERO SECTION (Bold Graphic + Cutout Car)
+   ============================================================ */
+.tb-hero-section {
+  background-color: #ffffff;
+  padding: 3.5rem 0 4.5rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.tb-hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.tb-hero-content {
+  z-index: 5;
+}
+
+.tb-hero-title {
+  font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  color: #0f172a;
+  margin-bottom: 1.25rem;
+}
+
+.tb-hero-desc {
+  font-size: 1.0625rem;
+  color: #475569;
+  line-height: 1.65;
+  margin-bottom: 2rem;
+  max-width: 520px;
+}
+
+.tb-hero-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+
+.tb-hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.tb-stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.tb-stat-num {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.tb-stat-lbl {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.tb-stat-divider {
+  width: 1px;
+  height: 2rem;
+  background-color: #e2e8f0;
+}
+
+.tb-hero-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+}
+
+.tb-hero-circle-shape {
+  position: absolute;
+  width: 440px;
+  height: 440px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.tb-hero-car-img {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 20px 25px rgba(0, 0, 0, 0.25));
+  transition: transform 0.3s ease;
+}
+
+.tb-hero-car-img:hover {
+  transform: scale(1.02);
+}
+
+/* ============================================================
+   ABOUT SECTION (White Car Cutout + Info)
+   ============================================================ */
+.tb-about-section {
+  padding: 4.5rem 0;
+  background-color: #ffffff;
+  border-top: 1px solid #f1f5f9;
+}
+
+.tb-about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.05fr;
+  align-items: center;
+  gap: 3.5rem;
+}
+
+.tb-about-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tb-about-car-img {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 15px 20px rgba(0, 0, 0, 0.12));
+}
+
+.tb-about-title {
+  font-size: 2.125rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  line-height: 1.25;
+  margin-bottom: 1rem;
+}
+
+.tb-about-desc {
+  font-size: 1rem;
+  color: #475569;
+  line-height: 1.65;
+  margin-bottom: 1.5rem;
+}
+
+.tb-about-points {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.tb-about-point {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* ============================================================
+   QUICK FILTER BAR (Harmonious Clean Soft Box)
+   ============================================================ */
+.tb-filter-strip {
+  background-color: #f8fafc;
+  padding: 3.5rem 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tb-filter-header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.tb-filter-title {
+  font-size: 1.625rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.375rem;
+}
+
+.tb-filter-subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.tb-filter-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 1rem;
+  align-items: flex-end;
+  background-color: #ffffff;
+  padding: 1.5rem;
+  border-radius: 0.875rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.tb-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.tb-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tb-filter-select {
+  padding: 0.6875rem 0.875rem;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tb-filter-select:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.tb-filter-btn {
+  padding: 0.6875rem 1.5rem;
+  height: 44px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   OUR BEST OFFERS (Vehicle Grid Cards)
+   ============================================================ */
+.tb-offers-section {
+  padding: 4.5rem 0;
+  background-color: #ffffff;
+}
+
+.tb-offers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.tb-offer-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+
+.tb-offer-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.08);
+  border-color: #fed7aa;
+}
+
+.tb-offer-tag {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: #fff7ed;
+  color: #ea580c;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid #ffedd5;
+  z-index: 2;
+}
+
+.tb-offer-img-box {
+  background-color: #f8fafc;
+  border-radius: 0.75rem;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.tb-offer-img {
+  max-height: 130px;
+  max-width: 90%;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.tb-offer-card:hover .tb-offer-img {
+  transform: scale(1.05);
+}
+
+.tb-offer-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.tb-offer-category {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.tb-offer-service {
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.tb-offer-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.tb-offer-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tb-offer-price-row {
+  margin-bottom: 1rem;
+}
+
+.tb-offer-price-lbl {
+  display: block;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.tb-offer-price-val {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #f97316;
+}
+
+.tb-offer-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+}
+
+/* ============================================================
+   WHY CHOOSE US (Harmonious Modern Clean Theme)
+   ============================================================ */
+.tb-why-section {
+  background-color: #f8fafc;
+  padding: 5rem 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tb-why-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.tb-why-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  padding: 1.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+.tb-why-card:hover {
+  transform: translateY(-2px);
+  border-color: #fed7aa;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.06);
+}
+
+.tb-why-icon-box {
+  width: 2.75rem;
+  height: 2.75rem;
+  background-color: #fff7ed;
+  border: 1px solid #ffedd5;
+  border-radius: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.tb-why-card-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.tb-why-card-desc {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   TESTIMONIALS & CTA BANNER
+   ============================================================ */
+.tb-cta-section {
+  padding: 4.5rem 0;
+  background-color: #ffffff;
+}
+
+.tb-testi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 3.5rem;
+}
+
+.tb-testi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.tb-testi-stars {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.tb-testi-comment {
+  font-size: 0.875rem;
+  color: #334155;
+  font-style: italic;
+  line-height: 1.6;
+  flex: 1;
+  margin-bottom: 1rem;
+}
+
+.tb-testi-author {
+  display: flex;
+  flex-direction: column;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.tb-testi-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.tb-testi-vehicle {
+  font-size: 0.75rem;
+  color: #f97316;
+  font-weight: 600;
+}
+
+.tb-action-banner {
+  background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+  border-radius: 1.25rem;
+  padding: 3rem 2.5rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(234, 88, 12, 0.25);
+}
+
+.tb-action-banner-content {
+  position: relative;
+  z-index: 2;
+  max-width: 600px;
+}
+
+.tb-action-banner-title {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.625rem;
+}
+
+.tb-action-banner-desc {
+  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1.75rem;
+}
+
+.tb-action-banner-btns {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.tb-action-banner-btns .tb-btn-primary {
+  background-color: #ffffff;
+  color: #ea580c;
+}
+
+.tb-action-banner-btns .tb-btn-primary:hover {
+  background-color: #fff7ed;
+  color: #c2410c;
+}
+
+.tb-action-banner-btns .tb-btn-dark {
+  background-color: rgba(15, 23, 42, 0.8);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tb-action-banner-btns .tb-btn-dark:hover {
+  background-color: #0f172a;
+}
+
+.tb-action-banner-arch {
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  right: -80px;
+  bottom: -140px;
+  z-index: 1;
+}
+
+/* ============================================================
+   CARD & FORM CONTROLS
+   ============================================================ */
+.tb-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.tb-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.06);
+  border-color: #fed7aa;
+}
+
+.tb-input,
+.tb-select,
+.tb-textarea {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #0f172a;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tb-input:focus,
+.tb-select:focus,
+.tb-textarea:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.tb-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.375rem;
+}
+
+/* ============================================================
+   RESPONSIVE MEDIA QUERIES
+   ============================================================ */
+@media (max-width: 992px) {
+  .tb-hero-grid {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: 3rem;
+  }
+  .tb-hero-desc {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .tb-hero-actions {
+    justify-content: center;
+  }
+  .tb-hero-stats {
+    justify-content: center;
+  }
+  .tb-hero-circle-shape {
+    right: 50%;
+    transform: translate(50%, -50%);
+    width: 360px;
+    height: 360px;
+  }
+  .tb-about-grid {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .tb-about-points {
+    align-items: center;
+  }
+  .tb-filter-form {
+    grid-template-columns: 1fr;
+  }
+  .tb-filter-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .tb-nav-links {
+    display: none;
+  }
+  .tb-mobile-toggle {
+    display: block !important;
+  }
+  .tb-section {
+    padding: 3rem 0;
+  }
+  .tb-section-title {
+    font-size: 1.625rem;
+  }
+  .tb-hero-title {
+    font-size: 2rem;
+  }
+  .tb-hero-circle-shape {
+    width: 280px;
+    height: 280px;
+  }
+  .tb-action-banner-arch {
+    display: none;
+  }
+}
