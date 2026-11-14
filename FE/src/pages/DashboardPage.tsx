@@ -17,6 +17,7 @@ import {
 import BookingStatusBadge from '../components/BookingStatusBadge'
 import BrandLogo from '../components/BrandLogo'
 import api from '../api/axios'
+import { getMergedAdminBookings } from '../user/dashboard/userStorage'
 
 
 interface DonutSegment {
@@ -121,7 +122,7 @@ export default function DashboardPage() {
           api.get('/ratings').catch(() => ({ data: { data: [] } })),
         ])
 
-        const bookings: Booking[] = bookingsRes.data.data || []
+        const bookings: Booking[] = getMergedAdminBookings(bookingsRes.data.data || [])
         const ratingsData: { rating: number }[] = ratingsRes.data.data || []
         const totalRatings = ratingsData.length
         const avgRating = totalRatings > 0

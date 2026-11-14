@@ -5,6 +5,13 @@ import * as XLSX from 'xlsx'
 import BookingStatusBadge from '../components/BookingStatusBadge'
 import BrandLogo from '../components/BrandLogo'
 import api from '../api/axios'
+import {
+  getMergedAdminBookings,
+  updateSharedBookingStatus,
+  saveBookingSpareparts,
+  getBookingSpareparts,
+  SHARED_ADMIN_BOOKINGS_KEY,
+} from '../user/dashboard/userStorage'
 
 interface Booking {
   id: number; booking_code: string; user_id: number; vehicle_id: number; service_id: number
@@ -71,7 +78,7 @@ export default function BookingsPage() {
         api.get('/services').catch(() => ({ data: { data: [] } })),
         api.get('/spareparts').catch(() => ({ data: { data: [] } }))
       ])
-      setBookings(bR.data.data || [])
+      setBookings(getMergedAdminBookings(bR.data.data || []))
       setCustomers(cR.data.data || [])
       setAllVehicles(vR.data.data || [])
       setServices(sR.data.data || [])
@@ -169,16 +176,16 @@ export default function BookingsPage() {
     setSparepartSearchQuery('')
     setLoadingSpareparts(true)
     try {
-      const res = await api.get(`/bookings/${b.id}/spareparts`)
-      if (res.data && res.data.data) {
-        setBookingSpareparts(res.data.data.map((sp: any) => ({
-          sparepart_id: sp.sparepart_id,
-          name: sp.name,
-          price: Number(sp.price),
-          quantity: Number(sp.quantity),
-          notes: sp.notes || ''
-        })))
-      }
+      const parts = await getBookingSpareparts(b.booking_code || b.id)
+      setBookingSpareparts(
+        parts.map((p) => ({
+          sparepart_id: p.sparepart_id,
+          name: p.name,
+          price: Number(p.price),
+          quantity: Number(p.quantity || 1),
+          notes: p.notes || '',
+        }))
+      )
     } catch (err) {
       console.error('Gagal mengambil data sparepart booking:', err)
     } finally {
@@ -233,20 +240,29 @@ export default function BookingsPage() {
     if (!selected || !newStatus) return
     setUpdatingId(selected.id)
     try {
-      // Update status booking
-      await api.patch(`/bookings/${selected.id}/status`, { status: newStatus })
-      
-      // Update data spareparts booking
-      await api.post(`/bookings/${selected.id}/spareparts`, bookingSpareparts.map(sp => ({
-        sparepart_id: sp.sparepart_id,
-        quantity: sp.quantity,
-        notes: sp.notes
-      })))
+      // 1. Update shared local status for immediate customer sync
+      updateSharedBookingStatus(selected.booking_code || selected.id, newStatus)
 
-      setBookings(p => p.map(b => b.id === selected.id ? { ...b, status: newStatus } : b))
+      // 2. Persist spareparts to customer and admin storage immediately
+      saveBookingSpareparts(
+        selected.booking_code || selected.id,
+        bookingSpareparts,
+        Number((selected as any).service_price || 100000)
+      )
+
+      // 3. Try update backend status booking
+      try {
+        await api.patch(`/bookings/${selected.id}/status`, { status: newStatus })
+      } catch {}
+
+      setBookings((p) =>
+        p.map((b) =>
+          b.id === selected.id || b.booking_code === selected.booking_code ? { ...b, status: newStatus } : b
+        )
+      )
       setSelected(null)
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Gagal menyimpan status & sparepart')
+      alert(err.response?.data?.message || err.message || 'Gagal menyimpan status')
     } finally {
       setUpdatingId(null)
     }
@@ -255,8 +271,22 @@ export default function BookingsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus booking ini?')) return
     setDeletingId(id)
-    try { await api.delete(`/bookings/${id}`); setBookings(p => p.filter(b => b.id !== id)) }
-    finally { setDeletingId(null) }
+    try {
+      try {
+        await api.delete(`/bookings/${id}`)
+      } catch {}
+
+      // Remove from shared bookings
+      try {
+        const raw = localStorage.getItem(SHARED_ADMIN_BOOKINGS_KEY)
+        if (raw) {
+          const arr = JSON.parse(raw)
+          localStorage.setItem(SHARED_ADMIN_BOOKINGS_KEY, JSON.stringify(arr.filter((b: any) => b.id !== id)))
+        }
+      } catch {}
+
+      setBookings(p => p.filter(b => b.id !== id))
+    } finally { setDeletingId(null) }
   }
 
   return (
