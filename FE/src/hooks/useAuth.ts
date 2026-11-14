@@ -24,7 +24,10 @@ export function useAuth() {
     const { user: userData, token: userToken } = res.data.data
 
     if (userData.role !== 'admin') {
-      throw new Error('Access denied. Admin accounts only.')
+      localStorage.setItem('customer_token', userToken)
+      localStorage.setItem('customer_user', JSON.stringify(userData))
+      window.location.href = '/user/dashboard'
+      return userData
     }
 
     localStorage.setItem('admin_token', userToken)

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Zap, Mail, Lock, Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react'
+import { Zap, Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
@@ -108,6 +108,36 @@ export default function LoginPage() {
         }}
       >
         <div style={{ width: '100%', maxWidth: 400 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <Link
+              to="/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                color: '#64748B',
+                textDecoration: 'none',
+                fontSize: '0.8125rem',
+                fontWeight: 500,
+              }}
+            >
+              <ArrowLeft size={14} />
+              <span>Beranda</span>
+            </Link>
+
+            <Link
+              to="/user/login"
+              style={{
+                color: '#F97316',
+                textDecoration: 'none',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+              }}
+            >
+              Portal Pelanggan →
+            </Link>
+          </div>
+
           {/* Title */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}

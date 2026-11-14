@@ -14,6 +14,9 @@ import SparepartsPage from './pages/SparepartsPage'
 import BookingsPage from './pages/BookingsPage'
 import RatingsPage from './pages/RatingsPage'
 import NotificationsPage from './pages/NotificationsPage'
+import UserHomePage from './pages/UserHomePage'
+import UserLoginPage from './pages/UserLoginPage'
+import UserDashboardPage from './pages/UserDashboardPage'
 
 function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false)
@@ -48,10 +51,20 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Customer Web View & Dedicated Customer Portal */}
+      <Route path="/" element={<UserHomePage />} />
+      <Route path="/user/login" element={<UserLoginPage />} />
+      <Route path="/user/dashboard" element={<UserDashboardPage />} />
+      <Route path="/user/bookings" element={<Navigate to="/user/dashboard" replace />} />
+      <Route path="/user/vehicles" element={<Navigate to="/user/dashboard" replace />} />
+
+      {/* Admin Login */}
       <Route
         path="/login"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
       />
+
+      {/* Admin Protected Panel */}
       <Route
         path="/*"
         element={
