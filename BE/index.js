@@ -14,6 +14,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import ratingRoutes from './routes/ratingRoutes.js';
 import sparepartRoutes from './routes/sparepartRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +56,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', uploadRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/spareparts', sparepartRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // 404 Handler
 app.use((req, res) => {
