@@ -28,6 +28,8 @@ import {
   Sparkles,
   ChevronRight,
   X,
+  AlertCircle,
+  Tag,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
@@ -35,14 +37,20 @@ import { serviceService, Service } from '../../services/serviceService';
 import { vehicleService, Vehicle } from '../../services/vehicleService';
 import { bookingService, Booking } from '../../services/bookingService';
 
+// Time slots synchronized with Web Frontend
 const TIME_SLOTS = [
-  '08:00 WIB',
+  '08:30 WIB',
   '09:00 WIB',
+  '09:30 WIB',
   '10:00 WIB',
+  '10:30 WIB',
   '11:00 WIB',
   '13:00 WIB',
+  '13:30 WIB',
   '14:00 WIB',
+  '14:30 WIB',
   '15:00 WIB',
+  '15:30 WIB',
   '16:00 WIB',
 ];
 
@@ -51,14 +59,14 @@ function getNext7Days() {
   const days = [];
   const daysName = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   const monthsName = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-  
+
   for (let i = 0; i < 7; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const date = String(d.getDate()).padStart(2, '0');
-    
+
     days.push({
       isoDate: `${year}-${month}-${date}`,
       dayName: i === 0 ? 'Hari ini' : daysName[d.getDay()],
@@ -71,18 +79,24 @@ function getNext7Days() {
 export default function CreateBookingScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ storeId?: string; storeName?: string; address?: string }>();
+  const params = useLocalSearchParams<{
+    storeId?: string;
+    storeName?: string;
+    address?: string;
+    vehicleId?: string;
+  }>();
 
   // Data state
   const [services, setServices] = useState<Service[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [userBookings, setUserBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Form selections
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(getNext7Days()[0].isoDate);
-  const [selectedTime, setSelectedTime] = useState<string>(TIME_SLOTS[0]);
+  const [selectedTime, setSelectedTime] = useState<string>(TIME_SLOTS[1]); // 09:00 WIB
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -92,11 +106,11 @@ export default function CreateBookingScreen() {
 
   // Add vehicle modal state
   const [isAddVehicleModalVisible, setIsAddVehicleModalVisible] = useState(false);
-  const [newBrand, setNewBrand] = useState('');
+  const [newBrand, setNewBrand] = useState('Honda');
   const [newModel, setNewModel] = useState('');
-  const [newYear, setNewYear] = useState('');
+  const [newYear, setNewYear] = useState(new Date().getFullYear().toString());
   const [newPlate, setNewPlate] = useState('');
-  const [newTransmission, setNewTransmission] = useState<'Manual' | 'Otomatis'>('Otomatis');
+  const [newTransmission, setNewTransmission] = useState<'Matic (CVT)' | 'Manual'>('Matic (CVT)');
   const [isAddingVehicle, setIsAddingVehicle] = useState(false);
 
   const availableDates = getNext7Days();
@@ -109,9 +123,10 @@ export default function CreateBookingScreen() {
     if (!user) return;
     setIsLoading(true);
     try {
-      const [servicesData, vehiclesData] = await Promise.all([
+      const [servicesData, vehiclesData, bookingsData] = await Promise.all([
         serviceService.getAllServices(),
-        vehicleService.getVehiclesByUser(user.id),
+        vehicleService.getVehiclesByUser(user.id, user.email),
+        bookingService.getBookingsByUser(user.id).catch(() => []),
       ]);
 
       setServices(servicesData);
@@ -120,8 +135,28 @@ export default function CreateBookingScreen() {
       }
 
       setVehicles(vehiclesData);
-      if (vehiclesData.length > 0) {
-        setSelectedVehicleId(vehiclesData[0].id);
+      setUserBookings(bookingsData);
+
+      // Pre-select vehicle if passed via route param
+      if (params.vehicleId) {
+        const found = vehiclesData.find((v) => String(v.id) === String(params.vehicleId));
+        if (found) {
+          setSelectedVehicleId(found.id);
+        } else if (vehiclesData.length > 0) {
+          setSelectedVehicleId(vehiclesData[0].id);
+        }
+      } else if (vehiclesData.length > 0) {
+        // Find first vehicle that is NOT currently undergoing active service
+        const available = vehiclesData.find((v) => {
+          const ongoing = bookingsData.some(
+            (b) =>
+              (b.vehicle_id === v.id || b.license_plate?.trim().toUpperCase() === v.license_plate?.trim().toUpperCase()) &&
+              b.status !== 'Selesai' &&
+              b.status !== 'Dibatalkan'
+          );
+          return !ongoing;
+        });
+        setSelectedVehicleId(available ? available.id : vehiclesData[0].id);
       }
     } catch (error) {
       console.log('Error fetching booking form data:', error);
@@ -154,10 +189,11 @@ export default function CreateBookingScreen() {
       setIsAddVehicleModalVisible(false);
 
       // Reset modal fields
-      setNewBrand('');
+      setNewBrand('Honda');
       setNewModel('');
-      setNewYear('');
+      setNewYear(new Date().getFullYear().toString());
       setNewPlate('');
+      Alert.alert('Sukses! 🚗', 'Kendaraan berhasil didaftarkan.');
     } catch (error: any) {
       Alert.alert('Gagal Tambah Kendaraan', error.message || 'Terjadi kesalahan.');
     } finally {
@@ -180,18 +216,49 @@ export default function CreateBookingScreen() {
       return;
     }
 
+    const chosenVehicle = vehicles.find((v) => v.id === selectedVehicleId);
+    if (!chosenVehicle) {
+      Alert.alert('Error', 'Kendaraan tidak ditemukan');
+      return;
+    }
+
+    // Validation matching Web Frontend: Cannot book the same vehicle if already in service
+    const ongoing = userBookings.find(
+      (b) =>
+        (b.vehicle_id === chosenVehicle.id ||
+          b.license_plate?.trim().toUpperCase() === chosenVehicle.license_plate?.trim().toUpperCase()) &&
+        b.status !== 'Selesai' &&
+        b.status !== 'Dibatalkan'
+    );
+
+    if (ongoing) {
+      Alert.alert(
+        'Kendaraan Sedang Dalam Pengerjaan',
+        `Kendaraan ${chosenVehicle.brand} ${chosenVehicle.model} (${chosenVehicle.license_plate}) sedang dalam proses servis (Status: ${ongoing.status}). Anda tidak dapat mendaftarkan servis baru untuk kendaraan yang sama sebelum servis sebelumnya selesai.`
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      const selectedService = services.find((s) => s.id === selectedServiceId);
+      const cleanTime = selectedTime.replace(/wib/gi, '').trim();
       const newBooking = await bookingService.createBooking({
         user_id: user.id,
+        customer_email: user.email,
         vehicle_id: selectedVehicleId,
+        license_plate: chosenVehicle.license_plate,
+        vehicle_brand: chosenVehicle.brand,
+        vehicle_model: chosenVehicle.model,
+        vehicle_year: chosenVehicle.year,
+        transmission: chosenVehicle.transmission || undefined,
         service_id: selectedServiceId,
+        service_name: selectedService?.name,
         booking_date: selectedDate,
-        booking_time: selectedTime,
+        booking_time: cleanTime,
         notes: notes.trim() || undefined,
       });
 
-      // Show proper success modal instead of raw Alert.alert
       setCreatedBooking(newBooking);
       setIsSuccessModalVisible(true);
     } catch (error: any) {
@@ -238,7 +305,6 @@ export default function CreateBookingScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right', 'bottom']}>
-      {/* KeyboardAvoidingView prevents inputs from being hidden when typing */}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -258,17 +324,15 @@ export default function CreateBookingScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Store Banner Info if navigated from store modal */}
+          {/* Banner Cabang Bengkel */}
           {params.storeName && (
-            <View style={styles.storeBannerCard}>
-              <Building2 size={20} color={colors.primary} />
+            <View style={styles.storeBanner}>
+              <View style={styles.storeBannerIcon}>
+                <Building2 size={20} color={colors.primaryDark} />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.storeBannerTitle}>{params.storeName}</Text>
-                {params.address && (
-                  <Text style={styles.storeBannerAddress} numberOfLines={1}>
-                    {params.address}
-                  </Text>
-                )}
+                <Text style={styles.storeBannerAddress}>{params.address || 'Bengkel Resmi ThunderBolt Garage'}</Text>
               </View>
             </View>
           )}
@@ -296,6 +360,22 @@ export default function CreateBookingScreen() {
                       </Text>
                       {isSelected && <CheckCircle2 size={18} color={colors.primary} />}
                     </View>
+
+                    {/* Price and Duration Badge synchronized with Web Frontend */}
+                    <View style={styles.serviceMetaRow}>
+                      <View style={styles.servicePriceBadge}>
+                        <Text style={styles.servicePriceText}>
+                          Rp {(service.price || 100000).toLocaleString('id-ID')}
+                        </Text>
+                      </View>
+                      {service.duration ? (
+                        <View style={styles.serviceDurationBadge}>
+                          <Clock size={11} color="#64748B" />
+                          <Text style={styles.serviceDurationText}>{service.duration}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+
                     {service.description ? (
                       <Text style={styles.serviceOptionDesc} numberOfLines={2}>
                         {service.description}
@@ -316,19 +396,40 @@ export default function CreateBookingScreen() {
 
             {vehicles.length > 0 ? (
               <View style={styles.vehiclesList}>
-                {vehicles.map((v) => {
+                {vehicles.map((v, idx) => {
                   const isSelected = selectedVehicleId === v.id;
                   const isMotor = ['honda', 'yamaha', 'kawasaki', 'suzuki', 'beat', 'vario', 'nmax', 'scoopy', 'aerox', 'pcx'].some(
                     (m) => v.brand.toLowerCase().includes(m) || v.model.toLowerCase().includes(m)
                   );
                   const IconComp = isMotor ? Bike : Car;
 
+                  const isUnderService = userBookings.some(
+                    (b) =>
+                      (b.vehicle_id === v.id ||
+                        b.license_plate?.trim().toUpperCase() === v.license_plate?.trim().toUpperCase()) &&
+                      b.status !== 'Selesai' &&
+                      b.status !== 'Dibatalkan'
+                  );
+
                   return (
                     <TouchableOpacity
-                      key={v.id}
-                      style={[styles.vehicleCard, isSelected && styles.vehicleCardSelected]}
+                      key={`create-booking-v-${v.id ?? v.license_plate ?? idx}`}
+                      style={[
+                        styles.vehicleCard,
+                        isSelected && styles.vehicleCardSelected,
+                        isUnderService && styles.vehicleCardDisabled,
+                      ]}
                       activeOpacity={0.85}
-                      onPress={() => setSelectedVehicleId(v.id)}
+                      onPress={() => {
+                        if (isUnderService) {
+                          Alert.alert(
+                            'Kendaraan Sedang Diservis',
+                            `Kendaraan ${v.brand} ${v.model} (${v.license_plate}) sedang dalam proses servis aktif.`
+                          );
+                          return;
+                        }
+                        setSelectedVehicleId(v.id);
+                      }}
                     >
                       <View
                         style={[
@@ -345,6 +446,12 @@ export default function CreateBookingScreen() {
                         <Text style={styles.vehicleSubtitle}>
                           Plat: {v.license_plate} {v.transmission ? `· ${v.transmission}` : ''}
                         </Text>
+                        {isUnderService && (
+                          <View style={styles.underServiceBadge}>
+                            <AlertCircle size={11} color="#C2410C" />
+                            <Text style={styles.underServiceText}>Sedang Dalam Pengerjaan</Text>
+                          </View>
+                        )}
                       </View>
                       {isSelected && <CheckCircle2 size={20} color={colors.primary} />}
                     </TouchableOpacity>
@@ -431,7 +538,7 @@ export default function CreateBookingScreen() {
 
             <TextInput
               style={styles.notesInput}
-              placeholder="Jelaskan keluhan pada kendaraanmu (misal: rem bunyi decit, tarikan berat...)"
+              placeholder="Jelaskan keluhan pada kendaraanmu (misal: rem decit, getaran saat akselerasi, tarikan berat...)"
               placeholderTextColor="#94A3B8"
               multiline
               numberOfLines={3}
@@ -449,108 +556,105 @@ export default function CreateBookingScreen() {
             disabled={isSubmitting}
           >
             {isSubmitting ? (
-              <ActivityIndicator color={colors.textOnPrimary} size="small" />
+              <ActivityIndicator color={colors.textOnPrimary} />
             ) : (
-              <Text style={styles.submitButtonText}>Konfirmasi &amp; Buat Booking</Text>
+              <View style={styles.submitBtnContent}>
+                <Sparkles size={18} color={colors.textOnPrimary} />
+                <Text style={styles.submitButtonText}>Konfirmasi Jadwal Servis</Text>
+              </View>
             )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Modal Add Vehicle with KeyboardAvoidingView */}
+      {/* ================= MODAL TAMBAH KENDARAAN ================= */}
       <Modal
         visible={isAddVehicleModalVisible}
-        animationType="slide"
         transparent
+        animationType="fade"
         onRequestClose={() => setIsAddVehicleModalVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableOpacity
-              style={styles.modalBackdropTouch}
-              activeOpacity={1}
-              onPress={() => setIsAddVehicleModalVisible(false)}
-            />
+        <View style={styles.modalOverlay}>
+          <View style={styles.addVehicleModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Tambah Kendaraan</Text>
+              <TouchableOpacity
+                onPress={() => setIsAddVehicleModalVisible(false)}
+                style={styles.closeModalBtn}
+              >
+                <X size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
 
-            <View style={styles.modalSheet}>
-              <View style={styles.modalHeaderRow}>
-                <Text style={styles.modalTitle}>Tambah Kendaraan Baru</Text>
-                <TouchableOpacity
-                  onPress={() => setIsAddVehicleModalVisible(false)}
-                  style={styles.modalCloseBtn}
-                >
-                  <X size={18} color="#64748B" />
-                </TouchableOpacity>
-              </View>
-
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Merk Kendaraan</Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="Merk (misal: Honda / Toyota / Yamaha)"
+                style={styles.textInput}
+                placeholder="Contoh: Honda, Yamaha, Toyota"
                 placeholderTextColor="#94A3B8"
                 value={newBrand}
                 onChangeText={setNewBrand}
               />
 
+              <Text style={styles.inputLabel}>Model / Tipe</Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="Model (misal: Beat / Avanza / NMAX)"
+                style={styles.textInput}
+                placeholder="Contoh: Vario 160, Civic RS, Brio"
                 placeholderTextColor="#94A3B8"
                 value={newModel}
                 onChangeText={setNewModel}
               />
 
-              <View style={styles.modalRow}>
-                <TextInput
-                  style={[styles.modalInput, { flex: 1 }]}
-                  placeholder="Tahun (misal: 2022)"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="number-pad"
-                  value={newYear}
-                  onChangeText={setNewYear}
-                />
-                <TextInput
-                  style={[styles.modalInput, { flex: 1.5 }]}
-                  placeholder="Plat Nomor (B 1234 XYZ)"
-                  placeholderTextColor="#94A3B8"
-                  autoCapitalize="characters"
-                  value={newPlate}
-                  onChangeText={setNewPlate}
-                />
-              </View>
+              <Text style={styles.inputLabel}>Tahun Pembuatan</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Contoh: 2023"
+                placeholderTextColor="#94A3B8"
+                keyboardType="numeric"
+                value={newYear}
+                onChangeText={setNewYear}
+              />
 
-              {/* Transmission Selector */}
-              <View style={styles.transmissionRow}>
-                <Text style={styles.transmissionLabel}>Transmisi:</Text>
+              <Text style={styles.inputLabel}>Nomor Plat</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Contoh: B 1234 XYZ"
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="characters"
+                value={newPlate}
+                onChangeText={setNewPlate}
+              />
+
+              <Text style={styles.inputLabel}>Transmisi</Text>
+              <View style={styles.transRow}>
                 <TouchableOpacity
                   style={[
-                    styles.transmissionOption,
-                    newTransmission === 'Otomatis' && styles.transmissionOptionSelected,
+                    styles.transBtn,
+                    newTransmission === 'Matic (CVT)' && styles.transBtnActive,
                   ]}
-                  onPress={() => setNewTransmission('Otomatis')}
+                  onPress={() => setNewTransmission('Matic (CVT)')}
                 >
                   <Text
                     style={[
-                      styles.transmissionText,
-                      newTransmission === 'Otomatis' && styles.transmissionTextSelected,
+                      styles.transBtnText,
+                      newTransmission === 'Matic (CVT)' && styles.transBtnTextActive,
                     ]}
                   >
-                    Otomatis
+                    Matic (CVT)
                   </Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
                   style={[
-                    styles.transmissionOption,
-                    newTransmission === 'Manual' && styles.transmissionOptionSelected,
+                    styles.transBtn,
+                    newTransmission === 'Manual' && styles.transBtnActive,
                   ]}
                   onPress={() => setNewTransmission('Manual')}
                 >
                   <Text
                     style={[
-                      styles.transmissionText,
-                      newTransmission === 'Manual' && styles.transmissionTextSelected,
+                      styles.transBtnText,
+                      newTransmission === 'Manual' && styles.transBtnTextActive,
                     ]}
                   >
                     Manual
@@ -558,103 +662,64 @@ export default function CreateBookingScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalCancelButton}
-                  onPress={() => setIsAddVehicleModalVisible(false)}
-                >
-                  <Text style={styles.modalCancelText}>Batal</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalSaveButton, isAddingVehicle && { opacity: 0.7 }]}
-                  onPress={handleCreateVehicle}
-                  disabled={isAddingVehicle}
-                >
-                  {isAddingVehicle ? (
-                    <ActivityIndicator color={colors.textOnPrimary} size="small" />
-                  ) : (
-                    <Text style={styles.modalSaveText}>Simpan Kendaraan</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
+              <TouchableOpacity
+                style={styles.saveVehicleBtn}
+                activeOpacity={0.88}
+                onPress={handleCreateVehicle}
+                disabled={isAddingVehicle}
+              >
+                {isAddingVehicle ? (
+                  <ActivityIndicator color={colors.textOnPrimary} />
+                ) : (
+                  <Text style={styles.saveVehicleBtnText}>Simpan Kendaraan</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
-      {/* PROPER ELEGANT SUCCESS MODAL */}
+      {/* ================= MODAL SUKSES BOOKING ================= */}
       <Modal
         visible={isSuccessModalVisible}
-        animationType="fade"
         transparent
+        animationType="slide"
         onRequestClose={handleGoHome}
       >
-        <View style={styles.successOverlay}>
-          <View style={styles.successCard}>
-            {/* Glowing Icon Badge */}
-            <View style={styles.successIconBadge}>
-              <Sparkles size={36} color={colors.textOnPrimary} />
+        <View style={styles.modalOverlay}>
+          <View style={styles.successModalCard}>
+            <View style={styles.successIconCircle}>
+              <CheckCircle2 size={44} color="#16A34A" />
             </View>
 
-            <Text style={styles.successTitle}>Booking Servis Berhasil!</Text>
-            <Text style={styles.successSubtitle}>
-              Pendaftaran servis kamu telah diterima. Tim mekanik ThunderBolt siap melayani!
+            <Text style={styles.successTitle}>Booking Berhasil Dibuat!</Text>
+            <Text style={styles.successSub}>
+              Jadwal servis kendaraan Anda telah tersimpan dan siap diproses teknisi bengkel.
             </Text>
 
-            {/* Ticket Code Pill */}
             {createdBooking && (
-              <View style={styles.ticketPillBox}>
-                <Text style={styles.ticketPillLabel}>KODE TIKET SERVIS</Text>
-                <Text style={styles.ticketPillCode}>{createdBooking.booking_code}</Text>
+              <View style={styles.bookingCodeBadge}>
+                <Text style={styles.bookingCodeLabel}>KODE BOOKING:</Text>
+                <Text style={styles.bookingCodeValue}>{createdBooking.booking_code}</Text>
               </View>
             )}
 
-            {/* Detail Summary Box */}
-            <View style={styles.successSummaryBox}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Layanan</Text>
-                <Text style={styles.summaryValue} numberOfLines={1}>
-                  {selectedServiceObj?.name || 'Servis Kendaraan'}
-                </Text>
-              </View>
-
-              <View style={styles.summaryDivider} />
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Kendaraan</Text>
-                <Text style={styles.summaryValue} numberOfLines={1}>
-                  {selectedVehicleObj ? `${selectedVehicleObj.brand} ${selectedVehicleObj.model}` : 'Kendaraan'}
-                </Text>
-              </View>
-
-              <View style={styles.summaryDivider} />
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Jadwal</Text>
-                <Text style={styles.summaryValue}>
-                  {selectedDate} · {selectedTime}
-                </Text>
-              </View>
-            </View>
-
-            {/* Action Buttons */}
             <View style={styles.successActions}>
               <TouchableOpacity
-                style={styles.primarySuccessBtn}
+                style={styles.goToDetailBtn}
                 activeOpacity={0.88}
                 onPress={handleGoToDetail}
               >
-                <Text style={styles.primarySuccessBtnText}>Lihat Status &amp; Detail Servis</Text>
-                <ChevronRight size={18} color={colors.textOnPrimary} />
+                <Text style={styles.goToDetailBtnText}>Lihat Detail Servis</Text>
+                <ChevronRight size={18} color="#FFFFFF" />
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.secondarySuccessBtn}
+                style={styles.goHomeBtn}
                 activeOpacity={0.8}
                 onPress={handleGoHome}
               >
-                <Text style={styles.secondarySuccessBtnText}>Kembali ke Beranda</Text>
+                <Text style={styles.goHomeBtnText}>Kembali ke Beranda</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -664,17 +729,13 @@ export default function CreateBookingScreen() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   flex: {
     flex: 1,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
   content: {
     paddingHorizontal: 20,
@@ -682,16 +743,15 @@ const styles = StyleSheet.create({
   },
   loadingCenter: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
   },
   loadingText: {
-    color: '#64748B',
     fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
-
-  /* Top Bar */
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -704,27 +764,36 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.card,
   },
   topBarTitle: {
-    color: '#1E293B',
-    fontSize: 17,
+    color: colors.textPrimary,
+    fontSize: 16,
     fontWeight: '800',
   },
 
-  /* Store Banner */
-  storeBannerCard: {
+  storeBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.categoryBg,
+    backgroundColor: '#FFF1EC',
     borderRadius: 16,
     padding: 14,
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.borderOrange,
+    borderColor: 'rgba(255, 106, 0, 0.2)',
+  },
+  storeBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   storeBannerTitle: {
     fontSize: 14,
@@ -733,62 +802,96 @@ const styles = StyleSheet.create({
   },
   storeBannerAddress: {
     fontSize: 12,
-    color: '#64748B',
+    color: colors.subtextGray,
     marginTop: 2,
   },
 
-  /* Form Sections */
   formSection: {
-    marginBottom: 24,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#1E293B',
+    color: colors.headingDark,
   },
 
-  /* Service Options */
   servicesGrid: {
     gap: 10,
   },
   serviceOptionCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
     padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
   },
   serviceOptionCardSelected: {
-    backgroundColor: '#FFF8F2',
     borderColor: colors.primary,
+    backgroundColor: '#FFF7ED',
   },
   serviceOptionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   serviceOptionName: {
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.headingDark,
+    flex: 1,
   },
   serviceOptionNameSelected: {
+    color: colors.primaryDark,
+  },
+  serviceMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  servicePriceBadge: {
+    backgroundColor: '#FFF1EC',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  servicePriceText: {
+    fontSize: 12,
+    fontWeight: '800',
     color: colors.primary,
+  },
+  serviceDurationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  serviceDurationText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
   },
   serviceOptionDesc: {
     fontSize: 12,
-    color: '#64748B',
-    marginTop: 4,
-    lineHeight: 17,
+    color: colors.subtextGray,
+    lineHeight: 16,
   },
 
-  /* Vehicle Selection */
   vehiclesList: {
     gap: 10,
     marginBottom: 10,
@@ -796,16 +899,20 @@ const styles = StyleSheet.create({
   vehicleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    padding: 12,
+    borderRadius: 14,
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 14,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
+    gap: 12,
   },
   vehicleCardSelected: {
-    backgroundColor: '#FFF8F2',
     borderColor: colors.primary,
+    backgroundColor: '#FFF7ED',
+  },
+  vehicleCardDisabled: {
+    opacity: 0.65,
+    backgroundColor: '#F1F5F9',
   },
   vehicleIconCircle: {
     width: 40,
@@ -815,66 +922,80 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   vehicleIconCircleDefault: {
-    backgroundColor: colors.categoryBg,
+    backgroundColor: '#E2E8F0',
   },
   vehicleIconCircleSelected: {
     backgroundColor: colors.primary,
   },
   vehicleTitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
-    color: '#1E293B',
+    color: colors.headingDark,
   },
   vehicleTitleSelected: {
-    color: colors.primary,
+    color: colors.primaryDark,
   },
   vehicleSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: 11.5,
+    color: colors.subtextGray,
     marginTop: 2,
   },
+  underServiceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  underServiceText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#C2410C',
+  },
   noVehicleBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
     padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
     alignItems: 'center',
     marginBottom: 10,
   },
   noVehicleText: {
-    color: '#64748B',
     fontSize: 13,
+    color: colors.subtextGray,
   },
   addVehicleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: colors.categoryBg,
-    borderRadius: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderColor: colors.borderOrange,
+    borderStyle: 'dashed',
+    gap: 6,
   },
   addVehicleButtonText: {
-    color: colors.primary,
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '700',
+    color: colors.primary,
   },
 
-  /* Dates & Time */
   datesRow: {
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
+    paddingBottom: 10,
   },
   dateChip: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    width: 80,
     paddingVertical: 10,
-    alignItems: 'center',
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    minWidth: 85,
+    alignItems: 'center',
   },
   dateChipSelected: {
     backgroundColor: colors.primary,
@@ -882,13 +1003,13 @@ const styles = StyleSheet.create({
   },
   dateChipDay: {
     fontSize: 11,
-    color: '#64748B',
+    color: colors.subtextGray,
     fontWeight: '600',
   },
   dateChipDate: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '800',
-    color: '#1E293B',
+    color: colors.headingDark,
     marginTop: 2,
   },
   dateChipTextSelected: {
@@ -899,11 +1020,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 8,
   },
   timeHeaderTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#64748B',
   },
   timeGrid: {
@@ -912,122 +1034,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   timeChip: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-  },
-  timeChipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  timeChipText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  timeChipTextSelected: {
-    color: colors.textOnPrimary,
-  },
-
-  /* Notes Input */
-  notesInput: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    padding: 14,
-    fontSize: 14,
-    color: '#1E293B',
-    minHeight: 85,
-  },
-
-  /* Submit CTA */
-  submitButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 18,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
-    color: colors.textOnPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-
-  /* Modal Add Vehicle */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'flex-end',
-  },
-  modalBackdropTouch: {
-    flex: 1,
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    gap: 12,
-  },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  modalCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalInput: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    height: 48,
-    fontSize: 14,
-    color: '#1E293B',
-  },
-  modalRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  transmissionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  transmissionLabel: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  transmissionOption: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
@@ -1035,189 +1041,223 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  transmissionOptionSelected: {
-    backgroundColor: colors.categoryBg,
+  timeChipSelected: {
+    backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  transmissionText: {
+  timeChipText: {
     fontSize: 12,
-    color: '#64748B',
     fontWeight: '600',
+    color: colors.headingDark,
   },
-  transmissionTextSelected: {
-    color: colors.primary,
-    fontWeight: '700',
+  timeChipTextSelected: {
+    color: colors.textOnPrimary,
   },
-  modalActions: {
+
+  notesInput: {
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 13,
+    color: colors.headingDark,
+    minHeight: 70,
+    backgroundColor: '#F8FAFC',
+  },
+
+  submitButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitBtnContent: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
+    alignItems: 'center',
+    gap: 8,
   },
-  modalCancelButton: {
+  submitButtonText: {
+    color: colors.textOnPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  modalOverlay: {
     flex: 1,
-    height: 48,
-    borderRadius: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  addVehicleModalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 22,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.headingDark,
+  },
+  closeModalBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalCancelText: {
-    color: '#64748B',
+  inputLabel: {
+    fontSize: 12,
     fontWeight: '700',
-    fontSize: 14,
+    color: colors.headingDark,
+    marginBottom: 6,
   },
-  modalSaveButton: {
-    flex: 1.5,
-    height: 48,
-    borderRadius: 14,
+  textInput: {
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 13,
+    color: colors.headingDark,
+    backgroundColor: '#F8FAFC',
+    marginBottom: 12,
+  },
+  transRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  transBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+  },
+  transBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#FFF7ED',
+  },
+  transBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.subtextGray,
+  },
+  transBtnTextActive: {
+    color: colors.primaryDark,
+    fontWeight: '700',
+  },
+  saveVehicleBtn: {
+    height: 46,
     backgroundColor: colors.primary,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
   },
-  modalSaveText: {
+  saveVehicleBtnText: {
     color: colors.textOnPrimary,
+    fontSize: 13.5,
     fontWeight: '700',
-    fontSize: 14,
   },
 
-  /* PROPER ELEGANT SUCCESS MODAL STYLES */
-  successOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  successCard: {
-    width: '100%',
+  successModalCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 28,
+    borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 8,
   },
-  successIconBadge: {
+  successIconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.primary,
+    backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
   },
   successTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1E293B',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  successSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-    paddingHorizontal: 8,
-  },
-  ticketPillBox: {
-    backgroundColor: '#FFF8F2',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.borderOrange,
-    width: '100%',
-    marginBottom: 16,
-  },
-  ticketPillLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  ticketPillCode: {
     fontSize: 18,
     fontWeight: '800',
     color: colors.headingDark,
-    letterSpacing: 0.5,
+    textAlign: 'center',
   },
-  successSummaryBox: {
-    width: '100%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 14,
+  successSub: {
+    fontSize: 12.5,
+    color: colors.subtextGray,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  bookingCodeBadge: {
+    backgroundColor: '#FFF7ED',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#FFEDD5',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignItems: 'center',
     marginBottom: 20,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  summaryValue: {
-    fontSize: 13,
+  bookingCodeLabel: {
+    fontSize: 11,
+    color: '#EA580C',
     fontWeight: '700',
-    color: '#1E293B',
-    maxWidth: '65%',
-    textAlign: 'right',
   },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 6,
+  bookingCodeValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: colors.headingDark,
+    marginTop: 2,
   },
   successActions: {
     width: '100%',
     gap: 10,
   },
-  primarySuccessBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    height: 52,
+  goToDetailBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
   },
-  primarySuccessBtnText: {
+  goToDetailBtnText: {
     color: colors.textOnPrimary,
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '700',
   },
-  secondarySuccessBtn: {
+  goHomeBtn: {
+    paddingVertical: 12,
+    borderRadius: 14,
     backgroundColor: '#F1F5F9',
-    borderRadius: 16,
-    height: 46,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  secondarySuccessBtnText: {
-    color: '#64748B',
-    fontSize: 13.5,
+  goHomeBtnText: {
+    color: colors.headingDark,
+    fontSize: 13,
     fontWeight: '700',
   },
 });

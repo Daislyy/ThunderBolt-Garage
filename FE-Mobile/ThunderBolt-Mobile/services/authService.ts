@@ -46,23 +46,16 @@ export const authService = {
     return res.data!;
   },
 
-  async updateProfile(userId: number, data: { name?: string; email?: string; profile_image?: string | null }): Promise<void> {
-    await apiRequest(`/users/${userId}`, {
-      method: 'PUT',
-      body: data,
-    });
-  },
-
-  async logout(): Promise<void> {
-    await removeToken();
-  },
-
-  async updateProfile(userId: number, data: { name?: string; email?: string }): Promise<User> {
+  async updateProfile(userId: number, data: { name?: string; email?: string; profile_image?: string | null }): Promise<User> {
     await apiRequest(`/users/${userId}`, {
       method: 'PUT',
       body: data,
     });
     return await this.getMe();
+  },
+
+  async logout(): Promise<void> {
+    await removeToken();
   },
 
   async uploadProfileImage(userId: number, imageUri: string): Promise<string> {

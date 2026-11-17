@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { Star } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { styles, REVIEW_CARD_WIDTH } from '../../styles/home.styles';
+import { ratingService } from '../../services/ratingService';
 
 export interface CustomerReviewItem {
   id: string;
@@ -21,7 +22,7 @@ export interface CustomerReviewItem {
   comment: string;
 }
 
-export const CUSTOMER_REVIEWS: CustomerReviewItem[] = [
+export const FALLBACK_REVIEWS: CustomerReviewItem[] = [
   {
     id: '1',
     userName: 'Budi Santoso',
@@ -49,19 +50,34 @@ export const CUSTOMER_REVIEWS: CustomerReviewItem[] = [
     serviceName: 'Spooring & Balancing 3D',
     comment: 'Teknisi menjelaskan kondisi mobil dengan detail & transparan. Tidak ada biaya tersembunyi.',
   },
-  {
-    id: '4',
-    userName: 'Ahmad Hidayat',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
-    rating: 4.8,
-    date: '2 minggu lalu',
-    serviceName: 'Diagnosis Komputer ECU',
-    comment: 'Masalah indikator engine check langsung ketemu solusinya. Sangat recommended!',
-  },
 ];
 
 export function CustomerReviewsSection() {
   const router = useRouter();
+  const [reviews, setReviews] = useState<CustomerReviewItem[]>(FALLBACK_REVIEWS);
+
+  useEffect(() => {
+    const fetchApiRatings = async () => {
+      try {
+        const data = await ratingService.getAllRatings();
+        if (data && data.length > 0) {
+          const mapped: CustomerReviewItem[] = data.map((r, idx) => ({
+            id: `api-review-${r.id || idx}`,
+            userName: r.customer_name || 'Pelanggan ThunderBolt',
+            userAvatar: `https://images.unsplash.com/photo-${1535713875002 + (idx % 5)}?q=80&w=200&auto=format&fit=crop`,
+            rating: Number(r.rating || 5),
+            date: r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'Baru saja',
+            serviceName: r.service_name || 'Servis Kendaraan',
+            comment: r.review || 'Pelayanan memuaskan dan teknisi sangat teliti.',
+          }));
+          setReviews([...mapped, ...FALLBACK_REVIEWS]);
+        }
+      } catch {
+        // Use fallback reviews
+      }
+    };
+    fetchApiRatings();
+  }, []);
 
   return (
     <View style={styles.reviewsSection}>
@@ -76,8 +92,8 @@ export function CustomerReviewsSection() {
       </View>
 
       <FlatList
-        data={CUSTOMER_REVIEWS}
-        keyExtractor={(item) => item.id}
+        data={reviews}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.reviewsListContainer}

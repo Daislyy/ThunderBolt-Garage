@@ -28,34 +28,59 @@ export interface CreateVehicleData {
 }
 
 export const vehicleService = {
-  async getVehiclesByUser(userId: number): Promise<Vehicle[]> {
-    const res = await apiRequest<Vehicle[]>(`/vehicles/user/${userId}`);
+  async getVehiclesByUser(userId: number, email?: string): Promise<Vehicle[]> {
+    const endpoint = email
+      ? `/vehicles/user/${userId}?email=${encodeURIComponent(email.trim())}`
+      : `/vehicles/user/${userId}`;
+    const res = await apiRequest<Vehicle[]>(endpoint);
     return res.data || [];
   },
 
-  async getVehicleById(id: number): Promise<Vehicle | null> {
+  async getVehicleById(id: number | string): Promise<Vehicle | null> {
     const res = await apiRequest<Vehicle>(`/vehicles/${id}`);
     return res.data || null;
   },
 
   async createVehicle(data: CreateVehicleData): Promise<Vehicle> {
+    // Sanitize transmission to meet Postgres CHECK constraint ('manual' | 'automatic')
+    let cleanTransmission = 'automatic';
+    if (data.transmission) {
+      const t = data.transmission.toLowerCase();
+      cleanTransmission = t.includes('man') || t.includes('kopling') ? 'manual' : 'automatic';
+    }
+
+    const payload = {
+      ...data,
+      license_plate: data.license_plate.trim().toUpperCase(),
+      transmission: cleanTransmission,
+    };
+
     const res = await apiRequest<Vehicle>('/vehicles', {
       method: 'POST',
-      body: data,
+      body: payload,
     });
     return res.data!;
   },
 
-  async updateVehicle(id: number, data: Partial<CreateVehicleData>): Promise<boolean> {
+  async updateVehicle(id: number | string, data: Partial<CreateVehicleData>): Promise<boolean> {
+    const payload = { ...data };
+    if (payload.license_plate) {
+      payload.license_plate = payload.license_plate.trim().toUpperCase();
+    }
+    if (payload.transmission) {
+      const t = payload.transmission.toLowerCase();
+      payload.transmission = t.includes('man') || t.includes('kopling') ? 'manual' : 'automatic';
+    }
+
     const res = await apiRequest(`/vehicles/${id}`, {
       method: 'PUT',
-      body: data,
+      body: payload,
     });
     return res.success;
   },
 
-  async deleteVehicle(id: number): Promise<boolean> {
-    const res = await apiRequest(`/vehicles/${id}`, { method: 'DELETE' });
+  async deleteVehicle(idOrPlate: number | string): Promise<boolean> {
+    const res = await apiRequest(`/vehicles/${idOrPlate}`, { method: 'DELETE' });
     return res.success;
   },
 };

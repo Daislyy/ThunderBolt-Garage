@@ -2,37 +2,45 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Clock3, Loader2, CheckCircle2, Wrench, RefreshCw, Plus } from 'lucide-react-native';
+import { Clock3, Loader2, CheckCircle2, Wrench, RefreshCw, Plus, Banknote, AlertCircle } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { bookingService, Booking } from '../../services/bookingService';
 
-type BookingStatus = 'pending' | 'process' | 'finish';
+type BookingStatus = 'pending' | 'process' | 'payment' | 'finish' | 'cancelled';
 
 // Map backend status to UI status
 function mapStatus(backendStatus: string): BookingStatus {
-  const s = backendStatus.toLowerCase();
+  const s = (backendStatus || '').toLowerCase();
   if (s === 'selesai' || s === 'finish' || s === 'completed' || s === 'done') return 'finish';
+  if (s === 'menunggu pembayaran' || s === 'payment' || s === 'menunggu konfirmasi') return 'payment';
   if (s === 'diproses' || s === 'process' || s === 'in_progress' || s === 'dikerjakan') return 'process';
+  if (s === 'dibatalkan' || s === 'cancelled' || s === 'batal') return 'cancelled';
   return 'pending'; // 'Menunggu' or anything else
 }
 
 const STATUS_LABEL: Record<BookingStatus, string> = {
   pending: 'Menunggu',
   process: 'Diproses',
+  payment: 'Menunggu Bayar',
   finish: 'Selesai',
+  cancelled: 'Dibatalkan',
 };
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending: colors.statusPending,
   process: colors.statusProcess,
+  payment: colors.statusPayment,
   finish: colors.statusFinish,
+  cancelled: colors.statusCancelled,
 };
 
 const STATUS_ICON: Record<BookingStatus, React.ComponentType<any>> = {
   pending: Clock3,
   process: Loader2,
+  payment: Banknote,
   finish: CheckCircle2,
+  cancelled: AlertCircle,
 };
 
 // Format date from ISO string to readable
@@ -82,8 +90,14 @@ export default function ServisScreen() {
     }, [fetchBookings])
   );
 
-  const activeBookings = bookings.filter((b) => mapStatus(b.status) !== 'finish');
-  const finishedBookings = bookings.filter((b) => mapStatus(b.status) === 'finish');
+  const activeBookings = bookings.filter((b) => {
+    const s = mapStatus(b.status);
+    return s !== 'finish' && s !== 'cancelled';
+  });
+  const finishedBookings = bookings.filter((b) => {
+    const s = mapStatus(b.status);
+    return s === 'finish' || s === 'cancelled';
+  });
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
@@ -146,7 +160,7 @@ export default function ServisScreen() {
         {!isLoading && activeBookings.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionHeading}>Sedang berjalan</Text>
-            {activeBookings.map((booking) => {
+            {activeBookings.map((booking, idx) => {
               const uiStatus = mapStatus(booking.status);
               const StatusIcon = STATUS_ICON[uiStatus];
               const vehicleLabel = booking.vehicle_brand && booking.vehicle_model
@@ -156,7 +170,7 @@ export default function ServisScreen() {
 
               return (
                 <TouchableOpacity
-                  key={booking.id}
+                  key={`active-booking-${booking.id ?? booking.booking_code ?? idx}`}
                   style={styles.ticketCard}
                   onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking.id) } })}
                   activeOpacity={0.85}
@@ -183,7 +197,7 @@ export default function ServisScreen() {
         {!isLoading && finishedBookings.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionHeading}>Riwayat</Text>
-            {finishedBookings.map((booking) => {
+            {finishedBookings.map((booking, idx) => {
               const uiStatus = mapStatus(booking.status);
               const StatusIcon = STATUS_ICON[uiStatus];
               const vehicleLabel = booking.vehicle_brand && booking.vehicle_model
@@ -193,7 +207,7 @@ export default function ServisScreen() {
 
               return (
                 <TouchableOpacity
-                  key={booking.id}
+                  key={`finished-booking-${booking.id ?? booking.booking_code ?? idx}`}
                   style={styles.ticketCard}
                   onPress={() => router.push({ pathname: '/booking/[id]', params: { id: String(booking.id) } })}
                   activeOpacity={0.85}

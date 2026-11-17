@@ -10,7 +10,8 @@ export interface Booking {
   booking_date: string;
   booking_time: string;
   notes: string | null;
-  status: string; // 'Menunggu' | 'Diproses' | 'Selesai'
+  status: string; // 'Menunggu' | 'Diproses' | 'Menunggu Pembayaran' | 'Selesai' | 'Dibatalkan'
+  total_price?: number;
   created_at?: string;
   updated_at?: string;
   // Joined fields
@@ -23,25 +24,35 @@ export interface Booking {
   transmission?: string;
   service_name?: string;
   service_description?: string;
+  service_price?: number;
 }
 
 export interface CreateBookingData {
   user_id: number;
+  customer_email?: string;
   vehicle_id: number;
+  license_plate?: string;
+  vehicle_brand?: string;
+  vehicle_model?: string;
+  vehicle_year?: number;
+  transmission?: string;
   service_id: number;
+  service_name?: string;
   booking_date: string;
   booking_time: string;
   notes?: string;
+  booking_code?: string;
 }
 
 export const bookingService = {
-  async getBookingsByUser(userId: number): Promise<Booking[]> {
-    const res = await apiRequest<Booking[]>(`/bookings/user/${userId}`);
+  async getBookingsByUser(userId: number, email?: string): Promise<Booking[]> {
+    const query = email ? `?email=${encodeURIComponent(email)}` : '';
+    const res = await apiRequest<Booking[]>(`/bookings/user/${userId}${query}`);
     return res.data || [];
   },
 
-  async getBookingById(id: number): Promise<Booking | null> {
-    const res = await apiRequest<Booking>(`/bookings/${id}`);
+  async getBookingById(idOrCode: number | string): Promise<Booking | null> {
+    const res = await apiRequest<Booking>(`/bookings/${idOrCode}`);
     return res.data || null;
   },
 
@@ -53,16 +64,20 @@ export const bookingService = {
     return res.data!;
   },
 
-  async updateBookingStatus(id: number, status: string): Promise<boolean> {
-    const res = await apiRequest(`/bookings/${id}/status`, {
+  async updateBookingStatus(idOrCode: number | string, status: string): Promise<boolean> {
+    const res = await apiRequest(`/bookings/${idOrCode}/status`, {
       method: 'PATCH',
       body: { status },
     });
     return res.success;
   },
 
-  async deleteBooking(id: number): Promise<boolean> {
-    const res = await apiRequest(`/bookings/${id}`, { method: 'DELETE' });
+  async cancelBooking(idOrCode: number | string): Promise<boolean> {
+    return this.updateBookingStatus(idOrCode, 'Dibatalkan');
+  },
+
+  async deleteBooking(idOrCode: number | string): Promise<boolean> {
+    const res = await apiRequest(`/bookings/${idOrCode}`, { method: 'DELETE' });
     return res.success;
   },
 };

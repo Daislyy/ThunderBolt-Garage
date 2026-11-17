@@ -23,10 +23,12 @@ export const colors = {
   success: '#7A3204',
   error: '#C9500A',
 
-  // Status booking dibedakan lewat saturasi/kegelapan oren, bukan hue lain
-  statusPending: '#B79376',   // oren muted = menunggu
-  statusProcess: '#FF6A00',   // oren penuh = sedang diproses
-  statusFinish: '#7A3204',    // oren gelap = selesai
+  // Status booking
+  statusPending: '#B79376',      // oren muted = menunggu
+  statusProcess: '#FF6A00',      // oren penuh = sedang diproses
+  statusPayment: '#EA580C',      // oren terang = menunggu pembayaran
+  statusFinish: '#7A3204',       // oren gelap = selesai
+  statusCancelled: '#DC2626',    // merah = dibatalkan
 
   overlay: 'rgba(36, 18, 7, 0.45)',
 

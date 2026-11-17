@@ -35,6 +35,9 @@ import {
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { authService } from '../../services/authService';
+import { vehicleService, Vehicle } from '../../services/vehicleService';
+import { bookingService, Booking } from '../../services/bookingService';
+import { GarageModal } from '../../components/profile/garage-modal';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -48,6 +51,70 @@ export default function ProfileScreen() {
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Garage Modal State (synchronized with Web Frontend UserVehiclesTab)
+  const [isGarageModalVisible, setIsGarageModalVisible] = useState(false);
+  const [garageVehicles, setGarageVehicles] = useState<Vehicle[]>([]);
+  const [garageBookings, setGarageBookings] = useState<Booking[]>([]);
+  const [isGarageLoading, setIsGarageLoading] = useState(false);
+
+  const handleOpenGarage = async () => {
+    if (!user) {
+      Alert.alert('Perhatian', 'Silakan login terlebih dahulu.');
+      return;
+    }
+    setIsGarageModalVisible(true);
+    setIsGarageLoading(true);
+    try {
+      const [vData, bData] = await Promise.all([
+        vehicleService.getVehiclesByUser(user.id, user.email),
+        bookingService.getBookingsByUser(user.id, user.email).catch(() => []),
+      ]);
+      setGarageVehicles(vData);
+      setGarageBookings(bData);
+    } catch (err: any) {
+      console.log('Error loading garage data:', err);
+    } finally {
+      setIsGarageLoading(false);
+    }
+  };
+
+  const handleBookServiceForVehicle = (vehicle: Vehicle) => {
+    setIsGarageModalVisible(false);
+    router.push({
+      pathname: '/booking/create' as any,
+      params: { vehicleId: String(vehicle.id) },
+    });
+  };
+
+  const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    try {
+      await vehicleService.deleteVehicle(vehicle.id || vehicle.license_plate);
+      setGarageVehicles((prev) => prev.filter((v) => v.id !== vehicle.id && v.license_plate !== vehicle.license_plate));
+      Alert.alert('Sukses', `Kendaraan ${vehicle.brand} ${vehicle.model} berhasil dihapus.`);
+    } catch (err: any) {
+      Alert.alert('Gagal Menghapus', err.message || 'Terjadi kesalahan saat menghapus kendaraan.');
+    }
+  };
+
+  const handleAddVehicleFromGarage = async (data: {
+    brand: string;
+    model: string;
+    year: number;
+    license_plate: string;
+    transmission: string;
+  }) => {
+    if (!user) return;
+    const created = await vehicleService.createVehicle({
+      user_id: user.id,
+      brand: data.brand,
+      model: data.model,
+      year: data.year,
+      license_plate: data.license_plate,
+      transmission: data.transmission,
+    });
+    setGarageVehicles((prev) => [created, ...prev]);
+  };
 
   // Pick Image from Gallery using expo-image-picker
   const handlePickImageFromGallery = async () => {
@@ -253,7 +320,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.menuItem}
               activeOpacity={0.7}
-              onPress={() => router.push('/booking/create' as any)}
+              onPress={handleOpenGarage}
             >
               <View style={[styles.iconCircle, { backgroundColor: '#F8F9FA' }]}>
                 <Car size={18} color={colors.primary} />
@@ -451,6 +518,18 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ==================== GARASI & KENDARAAN MODAL (SINKRON USER VEHICLES TAB WEB) ==================== */}
+      <GarageModal
+        visible={isGarageModalVisible}
+        vehicles={garageVehicles}
+        bookings={garageBookings}
+        isLoading={isGarageLoading}
+        onClose={() => setIsGarageModalVisible(false)}
+        onBookServiceForVehicle={handleBookServiceForVehicle}
+        onAddVehicle={handleAddVehicleFromGarage}
+        onDeleteVehicle={handleDeleteVehicle}
+      />
     </SafeAreaView>
   );
 }
