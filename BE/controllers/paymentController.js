@@ -107,22 +107,22 @@ export const paymentController = {
             booking_id: booking_id,
             order_id: orderId,
             gross_amount: gross_amount,
-            transaction_status: 'settlement',
+            transaction_status: 'pending',
             payment_method: 'cash',
             payment_type: 'cash',
-            paid_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
           },
         ]);
 
-        // Update booking status to Selesai
-        await db.from('bookings').update({ status: 'Selesai' }).eq('id', booking_id);
+        // Update booking status to Menunggu Pembayaran
+        await db.from('bookings').update({ status: 'Menunggu Pembayaran' }).eq('id', booking_id);
       } catch (dbErr) {
         console.warn('Could not update cash in db:', dbErr.message);
       }
 
       res.json({
         success: true,
-        message: 'Pembayaran cash berhasil dicatat',
+        message: 'Permintaan pembayaran cash telah dikirim ke admin bengkel',
         order_id: orderId,
       });
     } catch (error) {

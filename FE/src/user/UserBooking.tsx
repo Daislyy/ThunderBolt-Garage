@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle2, Send, MessageSquare, AlertCircle, RefreshCw } from 'lucide-react'
-import { syncBookingToAdmin } from './dashboard/userStorage'
-import { getLocalServices } from './dashboard/serviceStorage'
+import { syncBookingToAdmin, getMergedAdminBookings } from './dashboard/userStorage'
+import { getLocalServices, fetchAllServices } from './dashboard/serviceStorage'
 
 interface UserBookingProps {
   preselectedService?: string
@@ -29,6 +29,12 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
   )
 
   useEffect(() => {
+    fetchAllServices().then((list) => {
+      if (list.length > 0) {
+        setAvailableServices(list.map((s) => s.name))
+      }
+    })
+
     const handleUpdate = () => {
       const list = getLocalServices().map((s) => s.name)
       if (list.length > 0) setAvailableServices(list)
@@ -67,6 +73,21 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
       return
     }
 
+    const cleanPlate = formData.plateNumber.trim().toUpperCase()
+    const allBookings = getMergedAdminBookings([])
+    const ongoing = allBookings.find(
+      (b) =>
+        (b.license_plate || '').trim().toUpperCase() === cleanPlate &&
+        b.status !== 'Selesai' &&
+        b.status !== 'Dibatalkan'
+    )
+    if (ongoing) {
+      setError(
+        `Kendaraan dengan plat ${cleanPlate} saat ini sedang dalam proses servis (${ongoing.status}). Mohon tunggu hingga servis selesai atau gunakan kendaraan lain.`
+      )
+      return
+    }
+
     setLoading(true)
 
     // Generate unique user-friendly booking reference: e.g. TB-7492
@@ -84,7 +105,7 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
       service: formData.serviceName,
       date: formData.bookingDate,
       time: formData.bookingTime,
-      status: 'Menunggu Konfirmasi',
+      status: 'Menunggu',
       notes: formData.notes,
       createdAt: new Date().toISOString(),
     }

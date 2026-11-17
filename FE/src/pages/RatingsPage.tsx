@@ -47,20 +47,35 @@ export default function RatingsPage() {
   const fetchRatings = async () => {
     setLoading(true)
     try {
-      setRatings((await api.get('/ratings')).data.data || [])
+      const res = await api.get('/ratings').catch(() => ({ data: { data: [] } }))
+      const apiData: RatingItem[] = res.data?.data || []
+
+      const sharedRaw = localStorage.getItem('tb_admin_shared_ratings')
+      const sharedData: RatingItem[] = sharedRaw ? JSON.parse(sharedRaw) : []
+
+      const map = new Map<string | number, RatingItem>()
+      apiData.forEach((r) => map.set(r.id || `${r.booking_id}-${r.user_id}`, r))
+      sharedData.forEach((r) => map.set(r.id || `${r.booking_id}-${r.user_id}`, r))
+
+      setRatings(Array.from(map.values()))
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { fetchRatings() }, [])
+  useEffect(() => {
+    fetchRatings()
+    const handleUpdate = () => fetchRatings()
+    window.addEventListener('tb_rating_created', handleUpdate)
+    return () => window.removeEventListener('tb_rating_created', handleUpdate)
+  }, [])
 
   const filtered = ratings.filter((r) => {
     const q = search.toLowerCase()
     const matchesSearch =
-      r.customer_name.toLowerCase().includes(q) ||
-      r.service_name.toLowerCase().includes(q) ||
-      r.booking_code.toLowerCase().includes(q) ||
+      (r.customer_name || '').toLowerCase().includes(q) ||
+      (r.service_name || '').toLowerCase().includes(q) ||
+      (r.booking_code || '').toLowerCase().includes(q) ||
       (r.review && r.review.toLowerCase().includes(q))
     const matchesRating = filterRating === null || r.rating === filterRating
     return matchesSearch && matchesRating
@@ -70,8 +85,16 @@ export default function RatingsPage() {
     if (!confirm('Hapus rating ini?')) return
     setDeletingId(id)
     try {
-      await api.delete(`/ratings/${id}`)
+      await api.delete(`/ratings/${id}`).catch(() => {})
       setRatings((p) => p.filter((r) => r.id !== id))
+      const sharedRaw = localStorage.getItem('tb_admin_shared_ratings')
+      if (sharedRaw) {
+        const sharedData: RatingItem[] = JSON.parse(sharedRaw)
+        localStorage.setItem(
+          'tb_admin_shared_ratings',
+          JSON.stringify(sharedData.filter((r) => r.id !== id))
+        )
+      }
     } finally {
       setDeletingId(null)
     }

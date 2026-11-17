@@ -68,11 +68,6 @@ export const bookingController = {
         return res.status(400).json({ success: false, message: 'Status is required' });
       }
 
-   
-      if (status === 'Selesai') {
-        status = 'Menunggu Konfirmasi';
-      }
-
       const updated = await bookingService.updateBookingStatus(bookingId, { status });
       if (!updated) {
         return res.status(404).json({ success: false, message: 'Booking not found or no changes made' });
@@ -81,13 +76,15 @@ export const bookingController = {
       const booking = await bookingService.getBookingById(bookingId);
       if (booking) {
         let notificationMessage = `Your booking ${booking.booking_code} status changed to ${status}.`;
-        if (status === 'Menunggu Konfirmasi') {
-          notificationMessage = 'Kendaraan Anda sudah selesai diservis. Mohon cek rincian tagihan dan konfirmasi.';
+        if (status === 'Menunggu Pembayaran') {
+          notificationMessage = 'Servis selesai dikerjakan. Silakan lakukan pembayaran tunai di kasir bengkel atau melalui online payment.';
+        } else if (status === 'Selesai') {
+          notificationMessage = 'Pembayaran telah dikonfirmasi dan servis telah selesai. Terima kasih telah mempercayai ThunderBolt Garage!';
         }
 
         await notificationService.createNotification({
           user_id: booking.user_id,
-          title: status === 'Menunggu Konfirmasi' ? 'Servis Selesai - Menunggu Konfirmasi' : 'Booking Status Updated',
+          title: status === 'Menunggu Pembayaran' ? 'Servis Selesai - Menunggu Pembayaran' : status === 'Selesai' ? 'Servis & Pembayaran Selesai' : 'Booking Status Updated',
           message: notificationMessage,
           type: 'booking_status',
           reference_id: booking.id

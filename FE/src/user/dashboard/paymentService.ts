@@ -8,7 +8,7 @@ export interface PaymentDetails {
   channelName?: string
   amount: number
   paidAt: string
-  status: 'paid'
+  status: 'paid' | 'pending_cash'
   referenceNo?: string
   snapToken?: string
 }
@@ -59,8 +59,11 @@ export function savePaymentRecord(payment: PaymentDetails) {
     localStorage.setItem(PAYMENT_STORAGE_KEY, JSON.stringify(payments))
   } catch {}
 
-  // Auto update booking status to 'Selesai'
-  updateSharedBookingStatus(payment.bookingCode || payment.bookingId, 'Selesai')
+  if (payment.status === 'paid') {
+    updateSharedBookingStatus(payment.bookingCode || payment.bookingId, 'Selesai')
+  } else if (payment.status === 'pending_cash') {
+    updateSharedBookingStatus(payment.bookingCode || payment.bookingId, 'Menunggu Pembayaran')
+  }
   window.dispatchEvent(new CustomEvent('tb_payment_completed', { detail: payment }))
 }
 
@@ -122,10 +125,30 @@ export async function payWithCash(
     channelName: 'Tunai / Cash di Bengkel',
     amount,
     paidAt: new Date().toISOString(),
-    status: 'paid',
+    status: 'pending_cash',
   })
 
-  return { success: true, message: 'Pembayaran tunai berhasil dikonfirmasi' }
+  return { success: true, message: 'Permintaan bayar cash dikirim ke admin' }
+}
+
+/**
+ * Admin confirms cash payment has been received
+ */
+export function confirmCashPaymentByAdmin(bookingCodeOrId: string | number, amount?: number): PaymentDetails {
+  const existing = getPaymentInfo(bookingCodeOrId)
+  const ref = `STRUK-${Date.now().toString().slice(-6)}`
+  const updated: PaymentDetails = {
+    bookingId: existing?.bookingId || bookingCodeOrId,
+    bookingCode: existing?.bookingCode || String(bookingCodeOrId),
+    method: 'cash',
+    channelName: 'Tunai / Kasir Bengkel',
+    amount: amount || existing?.amount || 0,
+    paidAt: new Date().toISOString(),
+    status: 'paid',
+    referenceNo: existing?.referenceNo || ref,
+  }
+  savePaymentRecord(updated)
+  return updated
 }
 
 /**

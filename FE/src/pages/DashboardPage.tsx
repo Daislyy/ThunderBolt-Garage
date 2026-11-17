@@ -88,7 +88,7 @@ interface Stats {
   notifications: number
   menunggu: number
   diproses: number
-  menungguKonfirmasi: number
+  menungguPembayaran: number
   selesai: number
   avgRating: string
   totalRatings: number
@@ -107,7 +107,7 @@ interface Booking {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({ users: 0, services: 0, bookings: 0, notifications: 0, menunggu: 0, diproses: 0, menungguKonfirmasi: 0, selesai: 0, avgRating: '0.0', totalRatings: 0 })
+  const [stats, setStats] = useState<Stats>({ users: 0, services: 0, bookings: 0, notifications: 0, menunggu: 0, diproses: 0, menungguPembayaran: 0, selesai: 0, avgRating: '0.0', totalRatings: 0 })
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -123,10 +123,17 @@ export default function DashboardPage() {
         ])
 
         const bookings: Booking[] = getMergedAdminBookings(bookingsRes.data.data || [])
-        const ratingsData: { rating: number }[] = ratingsRes.data.data || []
+        const apiRatings: { id?: any; rating: number }[] = ratingsRes.data.data || []
+        const sharedRaw = localStorage.getItem('tb_admin_shared_ratings')
+        const sharedRatings: { id?: any; rating: number }[] = sharedRaw ? JSON.parse(sharedRaw) : []
+        const ratingsMap = new Map<string | number, { rating: number }>()
+        apiRatings.forEach((r, idx) => ratingsMap.set(r.id || `api-${idx}`, r))
+        sharedRatings.forEach((r, idx) => ratingsMap.set(r.id || `shared-${idx}`, r))
+        const ratingsData = Array.from(ratingsMap.values())
+
         const totalRatings = ratingsData.length
         const avgRating = totalRatings > 0
-          ? (ratingsData.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) / totalRatings).toFixed(1)
+          ? (ratingsData.reduce((sum: number, r: { rating: number }) => sum + Number(r.rating || 5), 0) / totalRatings).toFixed(1)
           : '0.0'
         setStats({
           users: usersRes.data.data?.length ?? 0,
@@ -135,7 +142,7 @@ export default function DashboardPage() {
           notifications: notifRes.data.data?.length ?? 0,
           menunggu: bookings.filter((b) => b.status === 'Menunggu').length,
           diproses: bookings.filter((b) => b.status === 'Diproses').length,
-          menungguKonfirmasi: bookings.filter((b) => b.status === 'Menunggu Konfirmasi').length,
+          menungguPembayaran: bookings.filter((b) => b.status === 'Menunggu Pembayaran').length,
           selesai:  bookings.filter((b) => b.status === 'Selesai').length,
           avgRating,
           totalRatings,
@@ -148,6 +155,9 @@ export default function DashboardPage() {
       }
     }
     fetchData()
+    const handleRating = () => fetchData()
+    window.addEventListener('tb_rating_created', handleRating)
+    return () => window.removeEventListener('tb_rating_created', handleRating)
   }, [])
 
   const statCards = [
@@ -159,17 +169,17 @@ export default function DashboardPage() {
   ]
 
   const donutSegments: DonutSegment[] = [
-    { label: 'Menunggu Review', value: stats.menunggu, color: '#f59e0b' },
+    { label: 'Menunggu', value: stats.menunggu, color: '#f59e0b' },
     { label: 'Sedang Diproses', value: stats.diproses, color: '#3b82f6' },
-    { label: 'Menunggu Konfirmasi', value: stats.menungguKonfirmasi, color: '#8b5cf6' },
+    { label: 'Menunggu Pembayaran', value: stats.menungguPembayaran, color: '#ea580c' },
     { label: 'Pengerjaan Selesai', value: stats.selesai, color: '#10b981' },
   ]
 
   const quickStats = [
     { label: 'Sedang Diproses', value: stats.diproses, icon: Loader2,       color: '#2563eb', bg: '#eff6ff' },
-    { label: 'Menunggu Konfirmasi', value: stats.menungguKonfirmasi, icon: Clock, color: '#7c3aed', bg: '#f5f3ff' },
+    { label: 'Menunggu Bayar', value: stats.menungguPembayaran, icon: Clock, color: '#ea580c', bg: '#fff7ed' },
     { label: 'Pengerjaan Selesai', value: stats.selesai, icon: CheckCircle2,  color: '#059669', bg: '#ecfdf5' },
-    { label: 'Total Layanan',   value: stats.services, icon: Wrench,        color: '#ea580c', bg: '#fff7ed' },
+    { label: 'Total Layanan',   value: stats.services, icon: Wrench,        color: '#F97316', bg: '#fff7ed' },
   ]
 
   return (

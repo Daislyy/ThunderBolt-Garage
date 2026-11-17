@@ -1,41 +1,49 @@
-import { Clock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Clock, Loader2, CheckCircle2, AlertCircle, Banknote } from 'lucide-react'
 
 interface Props {
-  status: 'Menunggu' | 'Diproses' | 'Menunggu Konfirmasi' | 'Selesai' | string
+  status: 'Menunggu' | 'Diproses' | 'Menunggu Pembayaran' | 'Selesai' | 'Dibatalkan' | string
 }
 
 const statusConfigs: Record<string, { label: string; text: string; bg: string; border: string; dot: string; icon: typeof Clock }> = {
   Menunggu: {
     label: 'Menunggu',
-    text: '#d97706',      // amber-600
-    bg: '#fffbeb',        // amber-50
-    border: '#fef3c7',    // amber-100
-    dot: '#f59e0b',       // amber-500
+    text: '#d97706',
+    bg: '#fffbeb',
+    border: '#fef3c7',
+    dot: '#f59e0b',
     icon: Clock,
   },
   Diproses: {
     label: 'Diproses',
-    text: '#2563eb',      // blue-600
-    bg: '#eff6ff',        // blue-50
-    border: '#dbeafe',    // blue-100
-    dot: '#3b82f6',       // blue-500
+    text: '#2563eb',
+    bg: '#eff6ff',
+    border: '#dbeafe',
+    dot: '#3b82f6',
     icon: Loader2,
   },
-  'Menunggu Konfirmasi': {
-    label: 'Menunggu Konfirmasi',
-    text: '#7c3aed',      // violet-600
-    bg: '#f5f3ff',        // violet-50
-    border: '#ede9fe',    // violet-100
-    dot: '#8b5cf6',       // violet-500
-    icon: Clock,
+  'Menunggu Pembayaran': {
+    label: 'Menunggu Pembayaran Cash',
+    text: '#ea580c',
+    bg: '#fff7ed',
+    border: '#ffedd5',
+    dot: '#f97316',
+    icon: Banknote,
   },
   Selesai: {
     label: 'Selesai',
-    text: '#059669',      // emerald-600
-    bg: '#ecfdf5',        // emerald-50
-    border: '#d1fae5',    // emerald-100
-    dot: '#10b981',       // emerald-500
+    text: '#059669',
+    bg: '#ecfdf5',
+    border: '#d1fae5',
+    dot: '#10b981',
     icon: CheckCircle2,
+  },
+  Dibatalkan: {
+    label: 'Dibatalkan',
+    text: '#dc2626',
+    bg: '#fef2f2',
+    border: '#fecaca',
+    dot: '#ef4444',
+    icon: AlertCircle,
   },
 }
 

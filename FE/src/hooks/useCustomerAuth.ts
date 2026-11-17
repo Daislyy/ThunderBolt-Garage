@@ -32,10 +32,7 @@ export function useCustomerAuth() {
         return userData
       }
     } catch (err: any) {
-      const status = err.response?.status
-      const serverMsg = err.response?.data?.message
-
-      // 2. Check locally registered users
+      // 2. Check locally registered users as fallback
       const localUsers = JSON.parse(localStorage.getItem('tb_registered_users') || '[]')
       const found = localUsers.find(
         (u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
@@ -43,7 +40,7 @@ export function useCustomerAuth() {
 
       if (found) {
         const userData: CustomerUser = {
-          id: found.id || 9999,
+          id: found.id || Date.now(),
           name: found.name,
           email: found.email,
           role: 'customer',
@@ -56,103 +53,42 @@ export function useCustomerAuth() {
         return userData
       }
 
-      // 3. If server is offline / Network Error / connection refused:
-      if (!err.response || err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
-        const cleanName = email.split('@')[0].replace(/[._-]/g, ' ')
-        const capitalizedName = cleanName ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) : 'Pelanggan'
-        const fallbackUser: CustomerUser = {
-          id: Math.floor(1000 + Math.random() * 9000),
-          name: capitalizedName,
-          email,
-          role: 'customer',
-        }
-        const fallbackToken = `token-offline-${Date.now()}`
-        localStorage.setItem('customer_token', fallbackToken)
-        localStorage.setItem('customer_user', JSON.stringify(fallbackUser))
-        setUser(fallbackUser)
-        setToken(fallbackToken)
-        return fallbackUser
-      }
-
-      // 4. If server responded with 401 specifically
-      if (status === 401 || status === 400) {
-        // If password is wrong or user not found on backend, also allow instant guest access so user is never blocked
-        const cleanName = email.split('@')[0].replace(/[._-]/g, ' ')
-        const capitalizedName = cleanName ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) : 'Pelanggan'
-        const fallbackUser: CustomerUser = {
-          id: Math.floor(1000 + Math.random() * 9000),
-          name: capitalizedName,
-          email,
-          role: 'customer',
-        }
-        const fallbackToken = `token-guest-${Date.now()}`
-        localStorage.setItem('customer_token', fallbackToken)
-        localStorage.setItem('customer_user', JSON.stringify(fallbackUser))
-        setUser(fallbackUser)
-        setToken(fallbackToken)
-        return fallbackUser
-      }
-
-      throw new Error(serverMsg || 'Email atau kata sandi tidak sesuai.')
+      const serverMsg = err.response?.data?.message
+      throw new Error(serverMsg || 'Email atau kata sandi tidak sesuai. Silakan coba lagi.')
     }
   }, [])
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    // 1. Try real backend API
+    // Always store in local registered users database
+    const localUsers = JSON.parse(localStorage.getItem('tb_registered_users') || '[]')
+    const existsLocally = localUsers.some(
+      (u: any) => u.email.toLowerCase() === email.trim().toLowerCase()
+    )
+    if (existsLocally) {
+      throw new Error('Email sudah terdaftar. Silakan gunakan email lain atau masuk.')
+    }
+
+    // Try backend API registration
     try {
-      const res = await api.post('/auth/register', { name, email, password, role: 'customer' })
-      if (res.data?.success && res.data?.data) {
-        const { user: userData, token: userToken } = res.data.data
-        localStorage.setItem('customer_token', userToken)
-        localStorage.setItem('customer_user', JSON.stringify(userData))
-        setUser(userData)
-        setToken(userToken)
-        return userData
-      }
+      await api.post('/auth/register', { name, email, password, role: 'customer' })
     } catch (err: any) {
-      if (err.response?.status === 400 && err.response?.data?.message?.includes('already registered')) {
+      if (err.response?.status === 400 && err.response?.data?.message?.includes('already')) {
         throw new Error(err.response.data.message)
       }
-
-      // Store in local storage so user can log in seamlessly
-      const localUsers = JSON.parse(localStorage.getItem('tb_registered_users') || '[]')
-      const newLocalUser = {
-        id: Math.floor(1000 + Math.random() * 9000),
-        name: name.trim(),
-        email: email.trim(),
-        password,
-        role: 'customer',
-      }
-      localStorage.setItem('tb_registered_users', JSON.stringify([...localUsers, newLocalUser]))
-
-      const userData: CustomerUser = {
-        id: newLocalUser.id,
-        name: newLocalUser.name,
-        email: newLocalUser.email,
-        role: 'customer',
-      }
-      const userToken = `token-local-${Date.now()}`
-      localStorage.setItem('customer_token', userToken)
-      localStorage.setItem('customer_user', JSON.stringify(userData))
-      setUser(userData)
-      setToken(userToken)
-      return userData
     }
-  }, [])
 
-  const loginDemo = useCallback(() => {
-    const demoUser: CustomerUser = {
-      id: 9999,
-      name: 'Pelanggan Demo',
-      email: 'pelanggan@thunderbolt.com',
+    // Save user record to local store so user can log in with their credentials
+    const newLocalUser = {
+      id: Math.floor(1000 + Math.random() * 9000),
+      name: name.trim(),
+      email: email.trim(),
+      password,
       role: 'customer',
+      createdAt: new Date().toISOString(),
     }
-    const demoToken = 'demo-customer-token'
-    localStorage.setItem('customer_token', demoToken)
-    localStorage.setItem('customer_user', JSON.stringify(demoUser))
-    setUser(demoUser)
-    setToken(demoToken)
-    return demoUser
+    localStorage.setItem('tb_registered_users', JSON.stringify([...localUsers, newLocalUser]))
+
+    return { success: true }
   }, [])
 
   const logout = useCallback(() => {
@@ -162,7 +98,7 @@ export function useCustomerAuth() {
     setToken(null)
   }, [])
 
-  const isAuthenticated = !!token && !!user
+  const isAuthenticated = Boolean(user && token)
 
-  return { user, token, isAuthenticated, login, register, loginDemo, logout }
+  return { user, token, isAuthenticated, login, register, logout }
 }

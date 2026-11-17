@@ -12,34 +12,34 @@ export default function UserLoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
-  const { login, register, loginDemo } = useCustomerAuth()
+  const { login, register } = useCustomerAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccessMsg('')
     setLoading(true)
 
     try {
       if (isRegister) {
         if (!name.trim()) throw new Error('Nama lengkap wajib diisi.')
         await register(name, email, password)
+        setIsRegister(false)
+        setPassword('')
+        setSuccessMsg('Registrasi berhasil! Silakan masuk menggunakan email dan kata sandi Anda.')
       } else {
         await login(email, password)
+        navigate('/user/dashboard')
       }
-      navigate('/user/dashboard')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Terjadi kesalahan, silakan coba lagi.'
       setError(msg)
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleDemoLogin = () => {
-    loginDemo()
-    navigate('/user/dashboard')
   }
 
   return (
@@ -165,7 +165,7 @@ export default function UserLoginPage() {
           >
             <button
               type="button"
-              onClick={() => { setIsRegister(false); setError(''); }}
+              onClick={() => { setIsRegister(false); setError(''); setSuccessMsg(''); }}
               style={{
                 flex: 1,
                 padding: '8px 12px',
@@ -184,7 +184,7 @@ export default function UserLoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setIsRegister(true); setError(''); }}
+              onClick={() => { setIsRegister(true); setError(''); setSuccessMsg(''); }}
               style={{
                 flex: 1,
                 padding: '8px 12px',
@@ -219,6 +219,25 @@ export default function UserLoginPage() {
                 : 'Masuk ke portal pelanggan ThunderBolt Garage'}
             </p>
           </motion.div>
+
+          {/* Success Banner */}
+          {successMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '12px 14px',
+                background: '#ECFDF5',
+                border: '1px solid #A7F3D0',
+                borderRadius: 10,
+                marginBottom: 20,
+              }}
+            >
+              <CheckCircle2 size={16} color="#10B981" style={{ flexShrink: 0 }} />
+              <p style={{ fontSize: '0.8125rem', color: '#047857', fontWeight: 600 }}>{successMsg}</p>
+            </motion.div>
+          )}
 
           {/* Error Banner */}
           {error && (
@@ -391,36 +410,8 @@ export default function UserLoginPage() {
             </motion.button>
           </form>
 
-          {/* Quick Demo Login Option */}
-          <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1px solid #F1F5F9', textAlign: 'center' }}>
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              style={{
-                width: '100%',
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: 10,
-                padding: '10px 14px',
-                fontSize: '0.8125rem',
-                color: '#475569',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                fontWeight: 600,
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#F1F5F9'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#F8FAFC'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
-            >
-              <CheckCircle2 size={15} color="#F97316" />
-              <span>Masuk Cepat (Akun Demo)</span>
-            </button>
-          </div>
-
-          <p style={{ textAlign: 'center', marginTop: 20, fontSize: '0.75rem', color: '#94A3B8' }}>
+          {/* Customer Service Help */}
+          <p style={{ textAlign: 'center', marginTop: 24, fontSize: '0.75rem', color: '#94A3B8' }}>
             Butuh bantuan servis? Hubungi CS WhatsApp{' '}
             <a href="https://wa.me/6281319233748" target="_blank" rel="noreferrer" style={{ color: '#F97316', textDecoration: 'none', fontWeight: 600 }}>
               0813-1923-3748

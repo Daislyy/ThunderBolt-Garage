@@ -81,7 +81,7 @@ export default function UserTracking({ initialQuery }: UserTrackingProps) {
         service: matchSaved.service,
         date: matchSaved.date,
         time: matchSaved.time,
-        status: matchSaved.status || 'Menunggu Konfirmasi',
+        status: matchSaved.status || 'Menunggu',
         mechanic: 'Antrean Bengkel',
         progressPercent: 25,
         notes: matchSaved.notes || 'Data booking telah tercatat di antrean sistem.',
@@ -110,9 +110,12 @@ export default function UserTracking({ initialQuery }: UserTrackingProps) {
 
   const getStepIndex = (status: string) => {
     switch (status) {
+      case 'Menunggu':
       case 'Menunggu Konfirmasi': return 0
-      case 'Kendaraan Masuk': return 1
+      case 'Diproses':
+      case 'Kendaraan Masuk':
       case 'Sedang Dikerjakan': return 2
+      case 'Menunggu Pembayaran': return 2
       case 'Selesai': return 3
       default: return 0
     }

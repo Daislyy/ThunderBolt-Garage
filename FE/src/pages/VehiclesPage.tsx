@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Car, Trash2, Edit2, Plus, RefreshCw, X } from 'lucide-react'
 import BrandLogo from '../components/BrandLogo'
 import api from '../api/axios'
+import { getMergedAdminVehicles, syncVehicleToShared } from '../user/dashboard/userStorage'
 
 interface Vehicle {
   id: number
@@ -48,17 +49,23 @@ export default function VehiclesPage() {
     setLoading(true)
     try {
       const [vRes, uRes] = await Promise.all([
-        api.get('/vehicles'),
+        api.get('/vehicles').catch(() => ({ data: { data: [] } })),
         api.get('/users').catch(() => ({ data: { data: [] } }))
       ])
-      setVehicles(vRes.data.data || [])
-      setUsersList(uRes.data.data || [])
+      const merged = getMergedAdminVehicles(vRes.data?.data || [])
+      setVehicles(merged)
+      setUsersList(uRes.data?.data || [])
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+    const handleUpdate = () => fetchData()
+    window.addEventListener('tb_vehicles_updated', handleUpdate)
+    return () => window.removeEventListener('tb_vehicles_updated', handleUpdate)
+  }, [])
 
   const filtered = vehicles.filter(v => {
     const q = search.toLowerCase()
@@ -96,11 +103,28 @@ export default function VehiclesPage() {
 
     setSubmitting(true)
     try {
-      if (editingId) {
-        await api.put(`/vehicles/${editingId}`, formData)
-      } else {
-        await api.post('/vehicles', formData)
-      }
+      try {
+        if (editingId) {
+          await api.put(`/vehicles/${editingId}`, formData)
+        } else {
+          await api.post('/vehicles', formData)
+        }
+      } catch {}
+
+      const targetUser = usersList.find(u => u.id === Number(formData.user_id))
+      syncVehicleToShared({
+        id: editingId || Date.now(),
+        user_id: formData.user_id,
+        brand: formData.brand,
+        model: formData.model,
+        year: formData.year,
+        license_plate: formData.license_plate,
+        transmission: formData.transmission,
+        owner_name: targetUser?.name || 'Pelanggan',
+        owner_email: targetUser?.email || '',
+        created_at: new Date().toISOString()
+      })
+
       setIsModalOpen(false)
       fetchData()
     } catch (err: any) {

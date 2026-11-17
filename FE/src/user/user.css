@@ -973,3 +973,23 @@
     display: none;
   }
 }
+
+/* Struk Pembayaran Print Styling */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #tb-receipt-print,
+  #tb-receipt-print * {
+    visibility: visible;
+  }
+  #tb-receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    border: none !important;
+  }
+}

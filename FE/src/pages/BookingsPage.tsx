@@ -12,6 +12,7 @@ import {
   getBookingSpareparts,
   SHARED_ADMIN_BOOKINGS_KEY,
 } from '../user/dashboard/userStorage'
+import { confirmCashPaymentByAdmin } from '../user/dashboard/paymentService'
 
 interface Booking {
   id: number; booking_code: string; user_id: number; vehicle_id: number; service_id: number
@@ -255,6 +256,12 @@ export default function BookingsPage() {
         await api.patch(`/bookings/${selected.id}/status`, { status: newStatus })
       } catch {}
 
+      // 4. If status Selesai, confirm cash payment record so receipt is generated
+      if (newStatus === 'Selesai') {
+        const grandTotal = Number((selected as any).total_price) || (Number((selected as any).service_price || 100000) + totalSparepartsPrice)
+        confirmCashPaymentByAdmin(selected.booking_code || selected.id, grandTotal)
+      }
+
       setBookings((p) =>
         p.map((b) =>
           b.id === selected.id || b.booking_code === selected.booking_code ? { ...b, status: newStatus } : b
@@ -323,8 +330,9 @@ export default function BookingsPage() {
             <option value="all">Semua Status</option>
             <option value="Menunggu">Menunggu</option>
             <option value="Diproses">Diproses</option>
-            <option value="Menunggu Konfirmasi">Menunggu Konfirmasi</option>
+            <option value="Menunggu Pembayaran">Menunggu Pembayaran</option>
             <option value="Selesai">Selesai</option>
+            <option value="Dibatalkan">Dibatalkan</option>
           </select>
         </div>
         <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>{filtered.length} transaksi ditemukan</span>
@@ -720,8 +728,15 @@ export default function BookingsPage() {
                 <select className="klesi-select" value={newStatus} onChange={e => setNewStatus(e.target.value)}>
                   <option value="Menunggu">Menunggu</option>
                   <option value="Diproses">Diproses</option>
-                  <option value="Menunggu Konfirmasi">Menunggu Konfirmasi</option>
+                  <option value="Menunggu Pembayaran">Menunggu Pembayaran (Cash)</option>
+                  <option value="Selesai">Selesai (Sudah Dibayar)</option>
+                  <option value="Dibatalkan">Dibatalkan</option>
                 </select>
+                {selected.status === 'Menunggu Pembayaran' && (
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: '#ea580c', fontWeight: 600 }}>
+                    ⚠️ Customer memilih bayar cash. Pastikan uang sudah diterima kasir sebelum memilih "Selesai".
+                  </p>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
