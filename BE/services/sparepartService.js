@@ -86,14 +86,20 @@ export const sparepartService = {
     return data && data.length > 0;
   },
 
-  async getBookingSpareparts(bookingId) {
+  async getBookingSpareparts(bookingIdOrCode) {
+    let validBookingId = Number(bookingIdOrCode);
+    if (isNaN(validBookingId) || validBookingId > 2147483647) {
+      const { data: b } = await db.from('bookings').select('id').eq('booking_code', String(bookingIdOrCode).trim()).maybeSingle();
+      if (b) validBookingId = b.id;
+    }
+
     const { data: rows, error } = await db
       .from('booking_spareparts')
       .select(`
         id, booking_id, sparepart_id, quantity, notes,
         spareparts(name, price)
       `)
-      .eq('booking_id', bookingId)
+      .eq('booking_id', validBookingId || 0)
       .order('id', { ascending: true });
 
     if (error) throw new Error(error.message);
@@ -117,19 +123,27 @@ export const sparepartService = {
     };
   },
 
-  async saveBookingSpareparts(bookingId, sparepartsArray = []) {
+  async saveBookingSpareparts(bookingIdOrCode, sparepartsArray = []) {
+    let validBookingId = Number(bookingIdOrCode);
+    if (isNaN(validBookingId) || validBookingId > 2147483647) {
+      const { data: b } = await db.from('bookings').select('id').eq('booking_code', String(bookingIdOrCode).trim()).maybeSingle();
+      if (b) validBookingId = b.id;
+    }
+
+    if (!validBookingId) return false;
+
     // Delete existing spareparts for this booking
     const { error: deleteError } = await db
       .from('booking_spareparts')
       .delete()
-      .eq('booking_id', bookingId);
+      .eq('booking_id', validBookingId);
 
     if (deleteError) throw new Error(deleteError.message);
 
     // Insert new spareparts if provided
     if (Array.isArray(sparepartsArray) && sparepartsArray.length > 0) {
       const insertData = sparepartsArray.map(item => ({
-        booking_id: bookingId,
+        booking_id: validBookingId,
         sparepart_id: item.sparepart_id,
         quantity: item.quantity || 1,
         notes: item.notes || null

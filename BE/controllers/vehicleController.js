@@ -12,7 +12,8 @@ export const vehicleController = {
 
   async getVehiclesByUser(req, res) {
     try {
-      const vehicles = await vehicleService.getVehiclesByUserId(req.params.userId);
+      const email = req.query.email;
+      const vehicles = await vehicleService.getVehiclesByUserId(req.params.userId, email);
       res.json({ success: true, data: vehicles });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

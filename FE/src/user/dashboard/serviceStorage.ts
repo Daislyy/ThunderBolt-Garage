@@ -86,33 +86,27 @@ export function saveLocalServices(services: GarageService[]): void {
 }
 
 export async function fetchAllServices(): Promise<GarageService[]> {
-  const localList = getLocalServices()
-
   try {
     const res = await api.get('/services')
-    if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+    if (res.data?.success && Array.isArray(res.data.data)) {
       const apiServices: GarageService[] = res.data.data.map((item: any, idx: number) => {
-        const localMatch = localList.find((l) => l.name.toLowerCase() === item.name.toLowerCase() || l.id === item.id)
         return {
           id: item.id,
           name: item.name,
-          description: item.description || localMatch?.description || 'Pemeriksaan standar teknisi bengkel ThunderBolt.',
-          duration: localMatch?.duration || '45 - 60 Menit',
-          price: localMatch?.price || (idx % 2 === 0 ? 120000 : 95000),
+          description: item.description || 'Pemeriksaan standar teknisi bengkel ThunderBolt.',
+          duration: '45 - 60 Menit',
+          price: idx % 2 === 0 ? 120000 : 95000,
           created_at: item.created_at || new Date().toISOString(),
         }
       })
-
-      const uniqueLocal = localList.filter((l) => !apiServices.some((a) => a.name.toLowerCase() === l.name.toLowerCase()))
-      const merged = [...apiServices, ...uniqueLocal]
-      saveLocalServices(merged)
-      return merged
+      saveLocalServices(apiServices)
+      return apiServices
     }
   } catch {
     // Backend offline, fallback to local
   }
 
-  return localList
+  return getLocalServices()
 }
 
 export async function addGarageService(data: { name: string; description: string; price?: number; duration?: string }): Promise<GarageService> {

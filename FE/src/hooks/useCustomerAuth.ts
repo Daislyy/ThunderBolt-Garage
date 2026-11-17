@@ -69,8 +69,12 @@ export function useCustomerAuth() {
     }
 
     // Try backend API registration
+    let backendId = Math.floor(1000 + Math.random() * 9000)
     try {
-      await api.post('/auth/register', { name, email, password, role: 'customer' })
+      const res = await api.post('/auth/register', { name, email, password, role: 'customer' })
+      if (res.data?.data?.user?.id) {
+        backendId = res.data.data.user.id
+      }
     } catch (err: any) {
       if (err.response?.status === 400 && err.response?.data?.message?.includes('already')) {
         throw new Error(err.response.data.message)
@@ -79,7 +83,7 @@ export function useCustomerAuth() {
 
     // Save user record to local store so user can log in with their credentials
     const newLocalUser = {
-      id: Math.floor(1000 + Math.random() * 9000),
+      id: backendId,
       name: name.trim(),
       email: email.trim(),
       password,

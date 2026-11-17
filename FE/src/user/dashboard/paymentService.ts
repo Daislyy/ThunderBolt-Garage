@@ -114,6 +114,7 @@ export async function payWithCash(
   try {
     await api.post('/payment/cash', {
       booking_id: bookingId,
+      booking_code: bookingCode,
       gross_amount: amount,
     })
   } catch {}
@@ -148,6 +149,10 @@ export function confirmCashPaymentByAdmin(bookingCodeOrId: string | number, amou
     referenceNo: existing?.referenceNo || ref,
   }
   savePaymentRecord(updated)
+
+  // Persist status 'Selesai' to backend Supabase
+  api.patch(`/bookings/${bookingCodeOrId}/status`, { status: 'Selesai' }).catch(() => {})
+
   return updated
 }
 
@@ -166,6 +171,7 @@ export async function payWithMidtrans(bookingData: {
   try {
     const res = await api.post('/payment/snap-token', {
       booking_id: bookingData.bookingId,
+      booking_code: bookingData.bookingCode,
       gross_amount: bookingData.amount,
       customer_name: bookingData.customerName,
       customer_email: bookingData.customerEmail,

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Send, CheckCircle2, AlertCircle } from 'lucide-react'
+import api from '../../api/axios'
 import type { CustomerUser } from '../../hooks/useCustomerAuth'
 import type {
   UserVehicle,
@@ -42,9 +43,32 @@ export default function UserNewBookingTab({
   const storageKeyBookings = getUserStorageKey(user, 'bookings')
 
   useEffect(() => {
-    // 1. Load user's vehicles (merged with admin shared)
+    // 1. Load user's vehicles (merged with admin shared and Supabase)
     const userVehicles = getCustomerVehicles(user)
     setVehicles(userVehicles)
+
+    const userEmailClean = (user.email || '').toLowerCase().trim()
+    api.get(`/vehicles/user/${user.id || 0}?email=${encodeURIComponent(userEmailClean)}`).then((res) => {
+      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        const apiVehs: UserVehicle[] = res.data.data.map((v: any) => ({
+          id: v.id,
+          userId: v.user_id,
+          brand: v.brand,
+          model: v.model,
+          year: v.year,
+          license_plate: v.license_plate,
+          transmission: v.transmission === 'manual' ? 'Manual' : 'Matic (CVT)',
+        }))
+        const map = new Map<string, UserVehicle>()
+        userVehicles.forEach((v) => map.set(v.license_plate.trim().toUpperCase(), v))
+        apiVehs.forEach((v) => map.set(v.license_plate.trim().toUpperCase(), v))
+        const merged = Array.from(map.values())
+        setVehicles(merged)
+        if (!form.vehiclePlate && merged.length > 0) {
+          setForm((prev) => ({ ...prev, vehiclePlate: prev.vehiclePlate || merged[0].license_plate }))
+        }
+      }
+    }).catch(() => {})
 
     // 2. Load bookings to detect vehicles in-progress
     const savedBookings = localStorage.getItem(storageKeyBookings)
@@ -115,52 +139,59 @@ export default function UserNewBookingTab({
     }
 
     setLoading(true)
+    try {
+      const randomDigits = Math.floor(1000 + Math.random() * 9000)
+      const bookingCode = `TBG-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomDigits}`
 
-    const randomDigits = Math.floor(1000 + Math.random() * 9000)
-    const bookingCode = `TBG-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomDigits}`
+      const matchedSvc = services.find((s) => s.name === form.serviceName)
 
-    const newBooking: UserBookingRecord = {
-      id: Date.now(),
-      booking_code: bookingCode,
-      user_id: user.id,
-      customer_name: user.name,
-      customer_email: user.email,
-      vehicle_id: chosenVehicle.id,
-      vehicle_brand: chosenVehicle.brand,
-      vehicle_model: chosenVehicle.model,
-      vehicle_year: chosenVehicle.year,
-      license_plate: chosenVehicle.license_plate,
-      transmission: chosenVehicle.transmission,
-      service_name: form.serviceName,
-      booking_date: form.bookingDate,
-      booking_time: form.bookingTime,
-      status: 'Menunggu',
-      total_price: 150000,
-      notes: form.notes,
-      created_at: new Date().toISOString(),
+      const initialBooking: UserBookingRecord = {
+        id: Date.now(),
+        booking_code: bookingCode,
+        user_id: user.id,
+        customer_name: user.name,
+        customer_email: user.email,
+        vehicle_id: chosenVehicle.id,
+        service_id: matchedSvc?.id || 1,
+        vehicle_brand: chosenVehicle.brand,
+        vehicle_model: chosenVehicle.model,
+        vehicle_year: chosenVehicle.year,
+        license_plate: chosenVehicle.license_plate,
+        transmission: chosenVehicle.transmission,
+        service_name: form.serviceName,
+        booking_date: form.bookingDate,
+        booking_time: form.bookingTime,
+        status: 'Menunggu',
+        total_price: 150000,
+        notes: form.notes,
+        created_at: new Date().toISOString(),
+      }
+
+      // Sync to backend Supabase DB & admin dashboard
+      const newBooking = await syncBookingToAdmin(initialBooking)
+
+      // Save in user-isolated storage
+      const saved = localStorage.getItem(storageKeyBookings)
+      let currentBookings: UserBookingRecord[] = []
+      if (saved) {
+        try {
+          currentBookings = JSON.parse(saved)
+        } catch {}
+      } else {
+        currentBookings = getInitialBookingsForUser(user)
+      }
+
+      const updated = [newBooking, ...currentBookings]
+      localStorage.setItem(storageKeyBookings, JSON.stringify(updated))
+
+      setSuccess(true)
+      setTimeout(() => {
+        onSuccess()
+      }, 800)
+    } catch (err: any) {
+      setError(err?.message || 'Gagal mendaftarkan servis kendaraan')
+      setLoading(false)
     }
-
-    // Sync to admin dashboard & database
-    syncBookingToAdmin(newBooking)
-
-    // Save in user-isolated storage
-    const saved = localStorage.getItem(storageKeyBookings)
-    let currentBookings: UserBookingRecord[] = []
-    if (saved) {
-      try {
-        currentBookings = JSON.parse(saved)
-      } catch {}
-    } else {
-      currentBookings = getInitialBookingsForUser(user)
-    }
-
-    const updated = [newBooking, ...currentBookings]
-    localStorage.setItem(storageKeyBookings, JSON.stringify(updated))
-
-    setSuccess(true)
-    setTimeout(() => {
-      onSuccess()
-    }, 800)
   }
 
   return (

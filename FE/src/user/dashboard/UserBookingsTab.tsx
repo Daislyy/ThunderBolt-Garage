@@ -49,14 +49,19 @@ export default function UserBookingsTab({
       setVehicles(initialV)
     }
 
-    // Try backend if real user
-    if (user.id && user.id !== 9999) {
+    // Try backend if user exists
+    if (user.id) {
       api
         .get(`/bookings/user/${user.id}`)
         .then((res) => {
-          if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-            setBookings(res.data.data)
-            localStorage.setItem(storageKeyBookings, JSON.stringify(res.data.data))
+          if (res.data?.success && Array.isArray(res.data.data)) {
+            const apiBookings = res.data.data
+            const localSaved = JSON.parse(localStorage.getItem(storageKeyBookings) || '[]')
+            const apiCodes = new Set(apiBookings.map((b: any) => b.booking_code))
+            const unsynced = localSaved.filter((b: any) => !apiCodes.has(b.booking_code))
+            const merged = [...apiBookings, ...unsynced]
+            setBookings(merged)
+            localStorage.setItem(storageKeyBookings, JSON.stringify(merged))
           } else {
             loadLocalBookings()
           }
@@ -86,9 +91,15 @@ export default function UserBookingsTab({
 
   useEffect(() => {
     fetchBookings()
-    const handleRatingUpdate = () => fetchBookings()
-    window.addEventListener('tb_rating_created', handleRatingUpdate)
-    return () => window.removeEventListener('tb_rating_created', handleRatingUpdate)
+    const handleRefresh = () => fetchBookings()
+    window.addEventListener('tb_rating_created', handleRefresh)
+    window.addEventListener('tb_booking_status_updated', handleRefresh)
+    window.addEventListener('tb_payment_completed', handleRefresh)
+    return () => {
+      window.removeEventListener('tb_rating_created', handleRefresh)
+      window.removeEventListener('tb_booking_status_updated', handleRefresh)
+      window.removeEventListener('tb_payment_completed', handleRefresh)
+    }
   }, [user.email, user.id])
 
   useEffect(() => {

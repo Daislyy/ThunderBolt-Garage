@@ -170,10 +170,30 @@ export default function BookingDetailModal({
     if (!window.confirm(`Yakin ingin membatalkan pesanan booking ${booking.booking_code}?`)) return
     setIsProcessing(true)
     try {
-      updateSharedBookingStatus(booking.booking_code || booking.id, 'Dibatalkan')
+      const idOrCode = booking.booking_code || booking.id
+      booking.status = 'Dibatalkan'
+
+      // 1. Update status locally across shared admin and customer storages
+      updateSharedBookingStatus(idOrCode, 'Dibatalkan')
+      if (booking.id) updateSharedBookingStatus(booking.id, 'Dibatalkan')
+      if (booking.booking_code) updateSharedBookingStatus(booking.booking_code, 'Dibatalkan')
+
+      // 2. Persist to backend Supabase database
       try {
-        await api.patch(`/bookings/${booking.id}/status`, { status: 'Dibatalkan' })
-      } catch {}
+        await api.patch(`/bookings/${idOrCode}/status`, { status: 'Dibatalkan' })
+      } catch (err) {
+        if (booking.booking_code && String(idOrCode) !== String(booking.booking_code)) {
+          await api.patch(`/bookings/${booking.booking_code}/status`, { status: 'Dibatalkan' }).catch(() => {})
+        }
+      }
+
+      // 3. Notify all components
+      window.dispatchEvent(
+        new CustomEvent('tb_booking_status_updated', {
+          detail: { idOrCode: booking.booking_code || booking.id, newStatus: 'Dibatalkan' },
+        })
+      )
+
       if (onPaymentSuccess) onPaymentSuccess()
       onClose()
     } finally {

@@ -21,6 +21,7 @@ export interface UserBookingRecord {
   customer_name?: string
   customer_email?: string
   vehicle_id?: number | string
+  service_id?: number | string
   vehicle_brand: string
   vehicle_model: string
   vehicle_year?: string | number
@@ -195,27 +196,53 @@ export function getInitialVehiclesForUser(user: CustomerUser): UserVehicle[] {
 }
 
 // --- Bookings Management ---
-export async function syncBookingToAdmin(booking: UserBookingRecord) {
+export async function syncBookingToAdmin(booking: UserBookingRecord): Promise<UserBookingRecord> {
+  const finalBooking: UserBookingRecord = { ...booking }
+
+  // 1. Sync to backend Supabase DB
+  try {
+    const res = await api.post(
+      '/bookings',
+      {
+        user_id: Number(booking.user_id) || 1,
+        customer_email: booking.customer_email,
+        vehicle_id: Number(booking.vehicle_id) || 1,
+        license_plate: booking.license_plate,
+        vehicle_brand: booking.vehicle_brand,
+        vehicle_model: booking.vehicle_model,
+        vehicle_year: booking.vehicle_year,
+        transmission: booking.transmission,
+        service_id: Number(booking.service_id) || 1,
+        service_name: booking.service_name,
+        booking_date: booking.booking_date,
+        booking_time: booking.booking_time,
+        booking_code: booking.booking_code,
+        notes: booking.notes,
+      },
+      { timeout: 4000 }
+    )
+
+    if (res.data?.data?.id) {
+      finalBooking.id = res.data.data.id
+      if (res.data.data.booking_code) {
+        finalBooking.booking_code = res.data.data.booking_code
+      }
+    }
+  } catch (err) {
+    console.warn('Backend booking sync warning:', err)
+  }
+
+  // 2. Save in shared admin storage
   try {
     const existing = getStorageJSON<UserBookingRecord[]>(SHARED_ADMIN_BOOKINGS_KEY, [])
     const updated = [
-      booking,
-      ...existing.filter((b) => b.booking_code !== booking.booking_code && String(b.id) !== String(booking.id)),
+      finalBooking,
+      ...existing.filter((b) => b.booking_code !== finalBooking.booking_code && String(b.id) !== String(finalBooking.id)),
     ]
     localStorage.setItem(SHARED_ADMIN_BOOKINGS_KEY, JSON.stringify(updated))
   } catch {}
 
-  // Sync to backend DB if possible
-  try {
-    await api.post('/bookings', {
-      user_id: Number(booking.user_id) || 1,
-      vehicle_id: Number(booking.vehicle_id) || 1,
-      service_id: 1,
-      booking_date: booking.booking_date,
-      booking_time: booking.booking_time,
-      notes: booking.notes,
-    })
-  } catch {}
+  return finalBooking
 }
 
 export function getMergedAdminBookings(apiBookings: any[] = []): any[] {
@@ -250,6 +277,9 @@ export function updateSharedBookingStatus(idOrCode: string | number, newStatus: 
     (k) => k.includes('_bookings') || k === 'tb_user_bookings',
     updater
   )
+
+  // Persist status change to Supabase backend API
+  api.patch(`/bookings/${idOrCode}/status`, { status: newStatus }).catch(() => {})
 
   window.dispatchEvent(new CustomEvent('tb_booking_status_updated', { detail: { idOrCode, newStatus } }))
 }
@@ -355,13 +385,20 @@ export async function submitServiceRating(ratingData: ServiceRatingRecord): Prom
 
   // 3. Send to backend API
   try {
-    const res = await api.post('/ratings', {
-      booking_id: Number(ratingData.booking_id) || 1,
-      user_id: Number(ratingData.user_id) || 1,
-      service_id: Number(ratingData.service_id) || 1,
-      rating: Number(ratingData.rating),
-      review: ratingData.review || '',
-    })
+    const res = await api.post(
+      '/ratings',
+      {
+        booking_id: Number(ratingData.booking_id) || 1,
+        booking_code: ratingData.booking_code,
+        user_id: Number(ratingData.user_id) || 1,
+        customer_email: ratingData.customer_email,
+        service_id: Number(ratingData.service_id) || 1,
+        service_name: ratingData.service_name,
+        rating: Number(ratingData.rating),
+        review: ratingData.review || '',
+      },
+      { timeout: 4000 }
+    )
     if (res.data?.data?.id) {
       fullRecord.id = res.data.data.id
     }

@@ -1,5 +1,5 @@
-import { useLocation } from 'react-router-dom'
-import { Bell, Menu, ShieldCheck } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Bell, Menu, ShieldCheck, LogOut } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 interface TopbarProps {
@@ -17,8 +17,16 @@ const routeTitles: Record<string, { title: string; subtitle: string }> = {
 
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const { pathname } = useLocation()
-  const { user } = useAuth()
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
   const page = routeTitles[pathname] ?? { title: 'ThunderBolt Garage', subtitle: 'Panel Admin Utama' }
+
+  const handleLogout = () => {
+    if (window.confirm('Yakin ingin keluar dari dashboard admin?')) {
+      logout()
+      navigate('/login')
+    }
+  }
 
   return (
     <header
@@ -178,6 +186,38 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
               user?.name?.charAt(0).toUpperCase() || 'A'
             )}
           </div>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            title="Keluar dari Admin"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+              padding: '0.5rem 0.75rem',
+              marginLeft: '0.25rem',
+              borderRadius: '0.75rem',
+              border: '1px solid #fecdd3',
+              backgroundColor: '#fff1f2',
+              color: '#e11d48',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#ffe4e6'
+              e.currentTarget.style.borderColor = '#fda4af'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#fff1f2'
+              e.currentTarget.style.borderColor = '#fecdd3'
+            }}
+          >
+            <LogOut style={{ width: '0.875rem', height: '0.875rem' }} />
+            <span>Logout</span>
+          </button>
         </div>
       </div>
     </header>

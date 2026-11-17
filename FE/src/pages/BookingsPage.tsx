@@ -253,8 +253,12 @@ export default function BookingsPage() {
 
       // 3. Try update backend status booking
       try {
-        await api.patch(`/bookings/${selected.id}/status`, { status: newStatus })
-      } catch {}
+        await api.patch(`/bookings/${selected.booking_code || selected.id}/status`, { status: newStatus })
+      } catch {
+        if (selected.id) {
+          await api.patch(`/bookings/${selected.id}/status`, { status: newStatus }).catch(() => {})
+        }
+      }
 
       // 4. If status Selesai, confirm cash payment record so receipt is generated
       if (newStatus === 'Selesai') {
@@ -278,9 +282,14 @@ export default function BookingsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('Hapus booking ini?')) return
     setDeletingId(id)
+    const targetBooking = bookings.find((b) => b.id === id)
     try {
       try {
-        await api.delete(`/bookings/${id}`)
+        if (targetBooking?.booking_code) {
+          await api.delete(`/bookings/${targetBooking.booking_code}`)
+        } else {
+          await api.delete(`/bookings/${id}`)
+        }
       } catch {}
 
       // Remove from shared bookings
@@ -288,12 +297,17 @@ export default function BookingsPage() {
         const raw = localStorage.getItem(SHARED_ADMIN_BOOKINGS_KEY)
         if (raw) {
           const arr = JSON.parse(raw)
-          localStorage.setItem(SHARED_ADMIN_BOOKINGS_KEY, JSON.stringify(arr.filter((b: any) => b.id !== id)))
+          localStorage.setItem(
+            SHARED_ADMIN_BOOKINGS_KEY,
+            JSON.stringify(arr.filter((b: any) => b.id !== id && b.booking_code !== targetBooking?.booking_code))
+          )
         }
       } catch {}
 
-      setBookings(p => p.filter(b => b.id !== id))
-    } finally { setDeletingId(null) }
+      setBookings((p) => p.filter((b) => b.id !== id && b.booking_code !== targetBooking?.booking_code))
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (

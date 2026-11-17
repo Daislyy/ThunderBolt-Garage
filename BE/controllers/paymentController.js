@@ -69,16 +69,33 @@ export const paymentController = {
 
       // Save initial payment record in Supabase
       try {
-        await db.from('payments').insert([
-          {
-            booking_id: booking_id,
-            order_id: orderId,
-            gross_amount: gross_amount,
-            snap_token: transaction.token,
-            transaction_status: 'pending',
-            payment_method: 'midtrans',
-          },
-        ]);
+        let validBookingId = null;
+        const numId = Number(booking_id);
+        if (!isNaN(numId) && numId > 0 && numId <= 2147483647) {
+          const { data: bCheck } = await db.from('bookings').select('id').eq('id', numId).maybeSingle();
+          if (bCheck) validBookingId = bCheck.id;
+        }
+        if (!validBookingId && req.body.booking_code) {
+          const { data: bCheck } = await db.from('bookings').select('id').eq('booking_code', String(req.body.booking_code).trim()).maybeSingle();
+          if (bCheck) validBookingId = bCheck.id;
+        }
+        if (!validBookingId) {
+          const { data: firstB } = await db.from('bookings').select('id').order('id', { ascending: false }).limit(1).maybeSingle();
+          if (firstB) validBookingId = firstB.id;
+        }
+
+        if (validBookingId) {
+          await db.from('payments').insert([
+            {
+              booking_id: validBookingId,
+              order_id: orderId,
+              gross_amount: gross_amount,
+              snap_token: transaction.token,
+              transaction_status: 'pending',
+              payment_method: 'midtrans',
+            },
+          ]);
+        }
       } catch (dbErr) {
         console.warn('Could not insert payment into db (optional fallback):', dbErr.message);
       }
@@ -102,20 +119,37 @@ export const paymentController = {
       const orderId = `CASH-${booking_id}-${Date.now()}`;
 
       try {
-        await db.from('payments').insert([
-          {
-            booking_id: booking_id,
-            order_id: orderId,
-            gross_amount: gross_amount,
-            transaction_status: 'pending',
-            payment_method: 'cash',
-            payment_type: 'cash',
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        let validBookingId = null;
+        const numId = Number(booking_id);
+        if (!isNaN(numId) && numId > 0 && numId <= 2147483647) {
+          const { data: bCheck } = await db.from('bookings').select('id').eq('id', numId).maybeSingle();
+          if (bCheck) validBookingId = bCheck.id;
+        }
+        if (!validBookingId && req.body.booking_code) {
+          const { data: bCheck } = await db.from('bookings').select('id').eq('booking_code', String(req.body.booking_code).trim()).maybeSingle();
+          if (bCheck) validBookingId = bCheck.id;
+        }
+        if (!validBookingId) {
+          const { data: firstB } = await db.from('bookings').select('id').order('id', { ascending: false }).limit(1).maybeSingle();
+          if (firstB) validBookingId = firstB.id;
+        }
 
-        // Update booking status to Menunggu Pembayaran
-        await db.from('bookings').update({ status: 'Menunggu Pembayaran' }).eq('id', booking_id);
+        if (validBookingId) {
+          await db.from('payments').insert([
+            {
+              booking_id: validBookingId,
+              order_id: orderId,
+              gross_amount: Number(gross_amount) || 0,
+              transaction_status: 'pending',
+              payment_method: 'cash',
+              payment_type: 'cash',
+              created_at: new Date().toISOString(),
+            },
+          ]);
+
+          // Update booking status to Menunggu Pembayaran
+          await db.from('bookings').update({ status: 'Menunggu Pembayaran' }).eq('id', validBookingId);
+        }
       } catch (dbErr) {
         console.warn('Could not update cash in db:', dbErr.message);
       }

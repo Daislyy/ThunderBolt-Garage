@@ -36,7 +36,7 @@ export default function UserVehiclesTab({
     model: '',
     year: new Date().getFullYear().toString(),
     license_plate: '',
-    transmission: 'Matic (CVT)',
+    transmission: 'automatic',
   })
 
   const storageKeyVehicles = getUserStorageKey(user, 'vehicles')
@@ -59,9 +59,62 @@ export default function UserVehiclesTab({
     setBookings(userBookings)
 
     // Load user's vehicles (merged with admin shared vehicles)
-    const list = getCustomerVehicles(user)
-    setVehicles(list)
-    setLoading(false)
+    const localList = getCustomerVehicles(user)
+    setVehicles(localList)
+
+    // Fetch latest vehicles from backend Supabase (support matching by user_id and email)
+    const userEmailClean = (user.email || '').toLowerCase().trim()
+    api
+      .get(`/vehicles/user/${user.id || 0}?email=${encodeURIComponent(userEmailClean)}`)
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          const apiVehs: UserVehicle[] = res.data.data.map((v: any) => ({
+            id: v.id,
+            userId: v.user_id,
+            brand: v.brand,
+            model: v.model,
+            year: v.year,
+            license_plate: v.license_plate,
+            transmission: v.transmission === 'manual' ? 'Manual' : 'Matic (CVT)',
+          }))
+
+          // Also check all vehicles as backup if list is empty
+          if (apiVehs.length === 0) {
+            api.get('/vehicles').then((allRes) => {
+              if (allRes.data?.success && Array.isArray(allRes.data.data)) {
+                const matched = allRes.data.data.filter(
+                  (v: any) =>
+                    String(v.user_id) === String(user.id) ||
+                    (v.owner_email && v.owner_email.toLowerCase().trim() === userEmailClean)
+                )
+                if (matched.length > 0) {
+                  const fallbackList = matched.map((v: any) => ({
+                    id: v.id,
+                    userId: v.user_id,
+                    brand: v.brand,
+                    model: v.model,
+                    year: v.year,
+                    license_plate: v.license_plate,
+                    transmission: v.transmission === 'manual' ? 'Manual' : 'Matic (CVT)',
+                  }))
+                  setVehicles(fallbackList)
+                  localStorage.setItem(storageKeyVehicles, JSON.stringify(fallbackList))
+                }
+              }
+            }).catch(() => {})
+          } else {
+            // Merge by license plate
+            const map = new Map<string, UserVehicle>()
+            localList.forEach((v) => map.set(v.license_plate.trim().toUpperCase(), v))
+            apiVehs.forEach((v: UserVehicle) => map.set(v.license_plate.trim().toUpperCase(), v))
+            const merged = Array.from(map.values())
+            setVehicles(merged)
+            localStorage.setItem(storageKeyVehicles, JSON.stringify(merged))
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -166,71 +219,114 @@ export default function UserVehiclesTab({
     e.preventDefault()
     setError('')
 
-    if (!formData.model.trim() || !formData.license_plate.trim()) {
+    const cleanModel = formData.model.trim()
+    const cleanPlate = formData.license_plate.trim().toUpperCase()
+
+    if (!cleanModel || !cleanPlate) {
       setError('Model kendaraan dan plat nomor wajib diisi.')
       return
     }
 
     setSubmitting(true)
-    const newVehicle: UserVehicle = {
-      id: Date.now(),
-      userId: user.id,
-      brand: formData.brand,
-      model: formData.model.trim(),
-      year: formData.year,
-      license_plate: formData.license_plate.trim().toUpperCase(),
-      transmission: formData.transmission,
+    try {
+      let vehicleId: number | string = Date.now()
+
+      // Try backend Supabase DB with 4-second timeout to avoid UI freeze
+      if (user.id) {
+        try {
+          const res = await api.post(
+            '/vehicles',
+            {
+              user_id: user.id,
+              user_email: user.email,
+              brand: formData.brand,
+              model: cleanModel,
+              year: formData.year,
+              license_plate: cleanPlate,
+              transmission: formData.transmission,
+            },
+            { timeout: 4000 }
+          )
+          if (res.data?.data?.id) {
+            vehicleId = res.data.data.id
+          }
+        } catch (err) {
+          console.warn('Backend vehicle insert warning:', err)
+        }
+      }
+
+      const newVehicle: UserVehicle = {
+        id: vehicleId,
+        userId: user.id,
+        brand: formData.brand,
+        model: cleanModel,
+        year: formData.year,
+        license_plate: cleanPlate,
+        transmission: formData.transmission,
+      }
+
+      // Save locally for this user (deduplicate by plate)
+      const currentList = vehicles.filter(
+        (v) => v.license_plate.trim().toUpperCase() !== cleanPlate
+      )
+      const updated = [newVehicle, ...currentList]
+      setVehicles(updated)
+      localStorage.setItem(storageKeyVehicles, JSON.stringify(updated))
+
+      // Sync to shared admin vehicles
+      syncVehicleToShared({
+        id: newVehicle.id,
+        user_id: user.id,
+        brand: newVehicle.brand,
+        model: newVehicle.model,
+        year: newVehicle.year,
+        license_plate: newVehicle.license_plate,
+        transmission: newVehicle.transmission,
+        owner_name: user.name,
+        owner_email: user.email,
+        created_at: new Date().toISOString(),
+      })
+
+      setShowAddModal(false)
+      setFormData({
+        brand: 'Honda',
+        model: '',
+        year: new Date().getFullYear().toString(),
+        license_plate: '',
+        transmission: 'automatic',
+      })
+    } catch (err: any) {
+      setError(err?.message || 'Gagal menyimpan kendaraan')
+    } finally {
+      setSubmitting(false)
     }
-
-    // Try backend if connected
-    if (user.id && user.id !== 9999) {
-      try {
-        await api.post('/vehicles', {
-          user_id: user.id,
-          brand: newVehicle.brand,
-          model: newVehicle.model,
-          year: newVehicle.year,
-          license_plate: newVehicle.license_plate,
-          transmission: newVehicle.transmission,
-        })
-      } catch {}
-    }
-
-    // Save locally for this user
-    const updated = [newVehicle, ...vehicles]
-    setVehicles(updated)
-    localStorage.setItem(storageKeyVehicles, JSON.stringify(updated))
-
-    // Sync to shared admin vehicles so Admin Vehicles page sees it
-    syncVehicleToShared({
-      id: newVehicle.id,
-      user_id: user.id,
-      brand: newVehicle.brand,
-      model: newVehicle.model,
-      year: newVehicle.year,
-      license_plate: newVehicle.license_plate,
-      transmission: newVehicle.transmission,
-      owner_name: user.name,
-      owner_email: user.email,
-      created_at: new Date().toISOString(),
-    })
-
-    setShowAddModal(false)
-    setFormData({
-      brand: 'Honda',
-      model: '',
-      year: new Date().getFullYear().toString(),
-      license_plate: '',
-      transmission: 'Matic (CVT)',
-    })
-    setSubmitting(false)
   }
 
-  const handleDeleteVehicle = (plate: string) => {
+  const handleDeleteVehicle = async (plate: string) => {
     if (window.confirm(`Hapus kendaraan dengan plat ${plate}?`)) {
+      const targetVeh = vehicles.find((v) => v.license_plate === plate)
       const updated = vehicles.filter((v) => v.license_plate !== plate)
       setVehicles(updated)
       localStorage.setItem(storageKeyVehicles, JSON.stringify(updated))
+
+      // Delete from backend Supabase
+      if (targetVeh?.id) {
+        api.delete(`/vehicles/${targetVeh.id}`).catch(() => {})
+      } else {
+        api.delete(`/vehicles/${plate}`).catch(() => {})
+      }
+
+      // Also remove from shared admin vehicles
+      try {
+        const sharedRaw = localStorage.getItem('tb_admin_shared_vehicles')
+        if (sharedRaw) {
+          const sharedArr = JSON.parse(sharedRaw)
+          localStorage.setItem(
+            'tb_admin_shared_vehicles',
+            JSON.stringify(sharedArr.filter((v: any) => v.license_plate?.trim().toUpperCase() !== plate.trim().toUpperCase()))
+          )
+        }
+      } catch {}
     }
   }
 
@@ -527,9 +623,8 @@ export default function UserVehiclesTab({
                     onChange={(e) => setFormData({ ...formData, transmission: e.target.value })}
                     className="tb-select"
                   >
-                    <option value="Matic (CVT)">Matic (CVT)</option>
-                    <option value="Manual">Manual</option>
-                    <option value="Kopling">Kopling</option>
+                    <option value="automatic">Matic (CVT / Otomatis)</option>
+                    <option value="manual">Manual / Kopling</option>
                   </select>
                 </div>
               </div>
