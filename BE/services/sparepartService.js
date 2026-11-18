@@ -125,12 +125,37 @@ export const sparepartService = {
 
   async saveBookingSpareparts(bookingIdOrCode, sparepartsArray = []) {
     let validBookingId = Number(bookingIdOrCode);
+    let bookingRecord = null;
+
     if (isNaN(validBookingId) || validBookingId > 2147483647) {
-      const { data: b } = await db.from('bookings').select('id').eq('booking_code', String(bookingIdOrCode).trim()).maybeSingle();
-      if (b) validBookingId = b.id;
+      const { data: b } = await db.from('bookings').select('id, status').eq('booking_code', String(bookingIdOrCode).trim()).maybeSingle();
+      if (b) {
+        validBookingId = b.id;
+        bookingRecord = b;
+      }
+    } else {
+      const { data: b } = await db.from('bookings').select('id, status').eq('id', validBookingId).maybeSingle();
+      if (b) {
+        validBookingId = b.id;
+        bookingRecord = b;
+      }
     }
 
-    if (!validBookingId) return false;
+    if (!validBookingId || !bookingRecord) {
+      const error = new Error('Booking tidak ditemukan');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Validation: Admin can ONLY add or modify spareparts when status is 'Diproses'
+    const currentStatus = String(bookingRecord.status || '').trim().toLowerCase();
+    if (currentStatus !== 'diproses') {
+      const error = new Error(
+        `Sparepart hanya dapat ditambahkan atau diubah ketika status pengerjaan 'Diproses'. Status booking saat ini: '${bookingRecord.status}'.`
+      );
+      error.statusCode = 400;
+      throw error;
+    }
 
     // Delete existing spareparts for this booking
     const { error: deleteError } = await db

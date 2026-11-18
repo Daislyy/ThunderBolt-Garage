@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, CalendarCheck, Trash2, RefreshCw, ChevronDown, X, Wrench, Plus, Calendar, Clock, FileSpreadsheet, Package } from 'lucide-react'
+import { Search, CalendarCheck, Trash2, RefreshCw, ChevronDown, X, Wrench, Plus, Calendar, Clock, FileSpreadsheet, Package, Lock, CheckCircle2, AlertCircle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import BookingStatusBadge from '../components/BookingStatusBadge'
 import BrandLogo from '../components/BrandLogo'
@@ -194,7 +194,13 @@ export default function BookingsPage() {
     }
   }
 
+  const isDiproses = selected?.status?.trim().toLowerCase() === 'diproses'
+
   const handleAddSparepart = (sp: MasterSparepart) => {
+    if (!isDiproses) {
+      alert("Sparepart hanya dapat ditambahkan ketika status booking 'Diproses'.")
+      return
+    }
     setBookingSpareparts(prev => {
       const existingIndex = prev.findIndex(item => item.sparepart_id === sp.id)
       if (existingIndex > -1) {
@@ -213,6 +219,7 @@ export default function BookingsPage() {
   }
 
   const handleQuantityChange = (index: number, qty: number) => {
+    if (!isDiproses) return
     const val = Math.max(1, qty)
     setBookingSpareparts(prev => {
       const updated = [...prev]
@@ -222,6 +229,7 @@ export default function BookingsPage() {
   }
 
   const handleNotesChange = (index: number, notes: string) => {
+    if (!isDiproses) return
     setBookingSpareparts(prev => {
       const updated = [...prev]
       updated[index] = { ...updated[index], notes }
@@ -230,6 +238,7 @@ export default function BookingsPage() {
   }
 
   const handleRemoveSparepart = (index: number) => {
+    if (!isDiproses) return
     setBookingSpareparts(prev => prev.filter((_, i) => i !== index))
   }
 
@@ -244,12 +253,14 @@ export default function BookingsPage() {
       // 1. Update shared local status for immediate customer sync
       updateSharedBookingStatus(selected.booking_code || selected.id, newStatus)
 
-      // 2. Persist spareparts to customer and admin storage immediately
-      saveBookingSpareparts(
-        selected.booking_code || selected.id,
-        bookingSpareparts,
-        Number((selected as any).service_price || 100000)
-      )
+      // 2. Persist spareparts ONLY if booking was in 'Diproses'
+      if (isDiproses) {
+        saveBookingSpareparts(
+          selected.booking_code || selected.id,
+          bookingSpareparts,
+          Number((selected as any).service_price || 100000)
+        )
+      }
 
       // 3. Try update backend status booking
       try {
@@ -541,30 +552,39 @@ export default function BookingsPage() {
                   <div style={{ position: 'relative' }}>
                     <button
                       type="button"
-                      onClick={() => setIsSparepartDropdownOpen(!isSparepartDropdownOpen)}
+                      disabled={!isDiproses}
+                      onClick={() => isDiproses && setIsSparepartDropdownOpen(!isSparepartDropdownOpen)}
                       style={{
                         padding: '0.45rem 0.875rem',
                         fontSize: '0.75rem',
                         fontWeight: 800,
                         borderRadius: '0.75rem',
-                        backgroundColor: '#fff7ed',
-                        color: '#ea580c',
-                        border: '1.5px solid #ffedd5',
-                        cursor: 'pointer',
+                        backgroundColor: isDiproses ? '#fff7ed' : '#f1f5f9',
+                        color: isDiproses ? '#ea580c' : '#94a3b8',
+                        border: isDiproses ? '1.5px solid #ffedd5' : '1.5px solid #e2e8f0',
+                        cursor: isDiproses ? 'pointer' : 'not-allowed',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.375rem',
                         transition: 'all 0.2s ease',
-                        boxShadow: '0 2px 6px rgba(249, 115, 22, 0.12)'
+                        boxShadow: isDiproses ? '0 2px 6px rgba(249, 115, 22, 0.12)' : 'none',
+                        opacity: isDiproses ? 1 : 0.6
                       }}
+                      title={
+                        isDiproses
+                          ? 'Tambah suku cadang yang diganti'
+                          : `Tidak dapat menambah sparepart saat status '${selected.status}'`
+                      }
                     >
                       <Plus style={{ width: '0.875rem', height: '0.875rem' }} />
                       <span>Tambah Sparepart</span>
-                      <ChevronDown style={{ width: '0.875rem', height: '0.875rem', transform: isSparepartDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+                      {isDiproses && (
+                        <ChevronDown style={{ width: '0.875rem', height: '0.875rem', transform: isSparepartDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+                      )}
                     </button>
 
                     <AnimatePresence>
-                      {isSparepartDropdownOpen && (
+                      {isDiproses && isSparepartDropdownOpen && (
                         <>
                           {/* Invisible Backdrop to handle click-outside */}
                           <div
@@ -673,6 +693,38 @@ export default function BookingsPage() {
                   </div>
                 </div>
 
+                {!isDiproses && (
+                  <div style={{
+                    marginBottom: '0.75rem',
+                    padding: '0.625rem 0.875rem',
+                    borderRadius: '0.625rem',
+                    backgroundColor: selected.status === 'Selesai' ? '#f0fdf4' : selected.status === 'Menunggu Pembayaran' ? '#fff7ed' : '#f8fafc',
+                    border: `1px solid ${selected.status === 'Selesai' ? '#bbf7d0' : selected.status === 'Menunggu Pembayaran' ? '#fed7aa' : '#e2e8f0'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: selected.status === 'Selesai' ? '#166534' : selected.status === 'Menunggu Pembayaran' ? '#c2410c' : '#475569'
+                  }}>
+                    {selected.status === 'Menunggu Pembayaran' ? (
+                      <>
+                        <Lock style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }} />
+                        <span><strong>Terkunci:</strong> Booking sudah masuk <em>Menunggu Pembayaran</em>. Sparepart tidak dapat ditambah atau diubah lagi.</span>
+                      </>
+                    ) : selected.status === 'Selesai' ? (
+                      <>
+                        <CheckCircle2 style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }} />
+                        <span><strong>Selesai:</strong> Pengerjaan servis telah selesai. Rincian sparepart bersifat permanen dan tidak dapat diubah.</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }} />
+                        <span>Sparepart hanya dapat ditambahkan saat status pengerjaan <strong>Diproses</strong> (status saat ini: <em>{selected.status}</em>).</span>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {loadingSpareparts ? (
                   <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8' }}>Memuat sparepart...</div>
                 ) : bookingSpareparts.length === 0 ? (
@@ -695,8 +747,16 @@ export default function BookingsPage() {
                               <input
                                 type="number"
                                 min={1}
+                                disabled={!isDiproses}
                                 className="klesi-input"
-                                style={{ width: '3.5rem', padding: '0.25rem 0.375rem', fontSize: '0.75rem', textAlign: 'center' }}
+                                style={{
+                                  width: '3.5rem',
+                                  padding: '0.25rem 0.375rem',
+                                  fontSize: '0.75rem',
+                                  textAlign: 'center',
+                                  opacity: isDiproses ? 1 : 0.65,
+                                  cursor: isDiproses ? 'text' : 'not-allowed'
+                                }}
                                 value={item.quantity}
                                 onChange={e => handleQuantityChange(idx, parseInt(e.target.value) || 1)}
                               />
@@ -706,21 +766,30 @@ export default function BookingsPage() {
                               {formatRupiah(item.quantity * item.price)}
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSparepart(idx)}
-                              style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '0.25rem' }}
-                              title="Hapus sparepart"
-                            >
-                              <X style={{ width: '1rem', height: '1rem' }} />
-                            </button>
+                            {isDiproses && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSparepart(idx)}
+                                style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '0.25rem' }}
+                                title="Hapus sparepart"
+                              >
+                                <X style={{ width: '1rem', height: '1rem' }} />
+                              </button>
+                            )}
                           </div>
                         </div>
 
                         <div>
                           <input
                             className="klesi-input"
-                            style={{ width: '100%', padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}
+                            disabled={!isDiproses}
+                            style={{
+                              width: '100%',
+                              padding: '0.25rem 0.5rem',
+                              fontSize: '0.7rem',
+                              opacity: isDiproses ? 1 : 0.65,
+                              cursor: isDiproses ? 'text' : 'not-allowed'
+                            }}
                             placeholder="Catatan sparepart (misal: Seri/No Part, Garansi, dll)..."
                             value={item.notes}
                             onChange={e => handleNotesChange(idx, e.target.value)}

@@ -109,7 +109,8 @@ export const sparepartController = {
       await sparepartService.saveBookingSpareparts(bookingId, sparepartsArray);
       res.json({ success: true, message: 'Spareparts saved successfully' });
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+      const statusCode = error.statusCode || 500;
+      res.status(statusCode).json({ success: false, message: error.message });
     }
   }
 };
