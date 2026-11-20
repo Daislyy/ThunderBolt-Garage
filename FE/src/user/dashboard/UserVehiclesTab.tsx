@@ -1,11 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Car, Plus, AlertCircle, Calendar, Wrench, CheckCircle2, Clock, Trash2 } from 'lucide-react'
 import api from '../../api/axios'
 import type { CustomerUser } from '../../hooks/useCustomerAuth'
-import type {
-  UserVehicle,
-  UserBookingRecord,
-} from './userStorage'
+import type { UserVehicle, UserBookingRecord } from './userStorage'
 import {
   getUserStorageKey,
   getInitialBookingsForUser,
@@ -18,6 +15,16 @@ interface UserVehiclesTabProps {
   onBookForVehicle: (vehicle: UserVehicle) => void
   onViewVehicleBookings: (licensePlate: string) => void
 }
+
+const mapApiVehicle = (v: any): UserVehicle => ({
+  id: v.id,
+  userId: v.user_id,
+  brand: v.brand,
+  model: v.model,
+  year: v.year,
+  license_plate: v.license_plate,
+  transmission: v.transmission === 'manual' ? 'Manual' : 'Matic (CVT)',
+})
 
 export default function UserVehiclesTab({
   user,
@@ -45,65 +52,39 @@ export default function UserVehiclesTab({
   const loadData = () => {
     setLoading(true)
 
-    // Load user's bookings first (to calculate individual vehicle statuses)
     let userBookings: UserBookingRecord[] = []
     const savedBookings = localStorage.getItem(storageKeyBookings)
     if (savedBookings) {
-      try {
-        userBookings = JSON.parse(savedBookings)
-      } catch {}
+      try { userBookings = JSON.parse(savedBookings) } catch {}
     } else {
       userBookings = getInitialBookingsForUser(user)
       localStorage.setItem(storageKeyBookings, JSON.stringify(userBookings))
     }
     setBookings(userBookings)
 
-    // Load user's vehicles (merged with admin shared vehicles)
     const localList = getCustomerVehicles(user)
     setVehicles(localList)
 
-    // Fetch latest vehicles from backend Supabase (support matching by user_id and email)
     const userEmailClean = (user.email || '').toLowerCase().trim()
     api
       .get(`/vehicles/user/${user.id || 0}?email=${encodeURIComponent(userEmailClean)}`)
       .then((res) => {
         if (res.data?.success && Array.isArray(res.data.data)) {
-          const apiVehs: UserVehicle[] = res.data.data.map((v: any) => ({
-            id: v.id,
-            userId: v.user_id,
-            brand: v.brand,
-            model: v.model,
-            year: v.year,
-            license_plate: v.license_plate,
-            transmission: v.transmission === 'manual' ? 'Manual' : 'Matic (CVT)',
-          }))
+          let apiVehs = res.data.data.map(mapApiVehicle)
 
-          // Also check all vehicles as backup if list is empty
           if (apiVehs.length === 0) {
             api.get('/vehicles').then((allRes) => {
               if (allRes.data?.success && Array.isArray(allRes.data.data)) {
-                const matched = allRes.data.data.filter(
-                  (v: any) =>
-                    String(v.user_id) === String(user.id) ||
-                    (v.owner_email && v.owner_email.toLowerCase().trim() === userEmailClean)
-                )
+                const matched = allRes.data.data
+                  .filter((v: any) => String(v.user_id) === String(user.id) || (v.owner_email && v.owner_email.toLowerCase().trim() === userEmailClean))
+                  .map(mapApiVehicle)
                 if (matched.length > 0) {
-                  const fallbackList = matched.map((v: any) => ({
-                    id: v.id,
-                    userId: v.user_id,
-                    brand: v.brand,
-                    model: v.model,
-                    year: v.year,
-                    license_plate: v.license_plate,
-                    transmission: v.transmission === 'manual' ? 'Manual' : 'Matic (CVT)',
-                  }))
-                  setVehicles(fallbackList)
-                  localStorage.setItem(storageKeyVehicles, JSON.stringify(fallbackList))
+                  setVehicles(matched)
+                  localStorage.setItem(storageKeyVehicles, JSON.stringify(matched))
                 }
               }
             }).catch(() => {})
           } else {
-            // Merge by license plate
             const map = new Map<string, UserVehicle>()
             localList.forEach((v) => map.set(v.license_plate.trim().toUpperCase(), v))
             apiVehs.forEach((v: UserVehicle) => map.set(v.license_plate.trim().toUpperCase(), v))
@@ -119,7 +100,6 @@ export default function UserVehiclesTab({
 
   useEffect(() => {
     loadData()
-    // Debounce the event listener to prevent rapid re-renders
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
     const handleUpdate = () => {
       if (debounceTimer) clearTimeout(debounceTimer)
@@ -132,104 +112,35 @@ export default function UserVehiclesTab({
     }
   }, [user.email, user.id])
 
-  // Get active status specifically for this vehicle
   const getVehicleStatusInfo = (licensePlate: string) => {
     const cleanPlate = (licensePlate || '').trim().toUpperCase()
-    const vehicleBookings = bookings.filter(
-      (b) => (b.license_plate || '').trim().toUpperCase() === cleanPlate
-    )
+    const vehicleBookings = bookings.filter((b) => (b.license_plate || '').trim().toUpperCase() === cleanPlate)
 
-    if (vehicleBookings.length === 0) {
-      return {
-        label: 'Kondisi Normal',
-        color: '#64748b',
-        bg: '#f8fafc',
-        border: '#e2e8f0',
-        dot: '#94a3b8',
-        icon: CheckCircle2,
-        desc: 'Belum ada jadwal servis aktif.',
-      }
-    }
-
-    // Check for pending payment
     const pendingPayment = vehicleBookings.find((b) => b.status === 'Menunggu Pembayaran')
     if (pendingPayment) {
-      return {
-        label: 'Menunggu Pembayaran',
-        color: '#c2410c',
-        bg: '#fff7ed',
-        border: '#fed7aa',
-        dot: '#ea580c',
-        icon: Clock,
-        desc: `${pendingPayment.service_name} (Silakan selesaikan pembayaran)`,
-        activeBooking: pendingPayment,
-      }
+      return { label: 'Menunggu Pembayaran', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa', dot: '#ea580c', icon: Clock, desc: `${pendingPayment.service_name} (Silakan selesaikan pembayaran)` }
     }
-
-    // Check for in-progress / ongoing booking
-    const inProgress = vehicleBookings.find(
-      (b) => b.status === 'Diproses' || b.status === 'Sedang Dikerjakan'
-    )
+    const inProgress = vehicleBookings.find((b) => b.status === 'Diproses' || b.status === 'Sedang Dikerjakan')
     if (inProgress) {
-      return {
-        label: 'Sedang Diservis di Bengkel',
-        color: '#1d4ed8',
-        bg: '#eff6ff',
-        border: '#bfdbfe',
-        dot: '#3b82f6',
-        icon: Wrench,
-        desc: inProgress.service_name,
-        activeBooking: inProgress,
-      }
+      return { label: 'Sedang Diservis di Bengkel', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', dot: '#3b82f6', icon: Wrench, desc: inProgress.service_name }
     }
-
-    // Check for waiting schedule
     const waiting = vehicleBookings.find((b) => b.status === 'Menunggu')
     if (waiting) {
-      return {
-        label: 'Menunggu Jadwal Servis',
-        color: '#ea580c',
-        bg: '#fff7ed',
-        border: '#ffedd5',
-        dot: '#f97316',
-        icon: Clock,
-        desc: `${waiting.service_name} (${waiting.booking_date})`,
-        activeBooking: waiting,
-      }
+      return { label: 'Menunggu Jadwal Servis', color: '#ea580c', bg: '#fff7ed', border: '#ffedd5', dot: '#f97316', icon: Clock, desc: `${waiting.service_name} (${waiting.booking_date})` }
     }
-
-    // Check latest completed
     const latest = vehicleBookings[0]
     if (latest && latest.status === 'Selesai') {
-      return {
-        label: 'Siap Digunakan',
-        color: '#15803d',
-        bg: '#dcfce7',
-        border: '#bbf7d0',
-        dot: '#22c55e',
-        icon: CheckCircle2,
-        desc: `Servis terakhir: ${latest.booking_date} (${latest.service_name})`,
-      }
+      return { label: 'Siap Digunakan', color: '#15803d', bg: '#dcfce7', border: '#bbf7d0', dot: '#22c55e', icon: CheckCircle2, desc: `Servis terakhir: ${latest.booking_date} (${latest.service_name})` }
     }
-
-    return {
-      label: 'Kondisi Normal',
-      color: '#64748b',
-      bg: '#f8fafc',
-      border: '#e2e8f0',
-      dot: '#94a3b8',
-      icon: CheckCircle2,
-      desc: 'Tidak ada servis aktif.',
-    }
+    return { label: 'Kondisi Normal', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', dot: '#94a3b8', icon: CheckCircle2, desc: 'Belum ada jadwal servis aktif.' }
   }
 
-  const handleAddVehicle = async (e: React.FormEvent) => {
+  const handleAddVehicle = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
 
     const cleanModel = formData.model.trim()
     const cleanPlate = formData.license_plate.trim().toUpperCase()
-
     if (!cleanModel || !cleanPlate) {
       setError('Model kendaraan dan plat nomor wajib diisi.')
       return
@@ -239,25 +150,18 @@ export default function UserVehiclesTab({
     try {
       let vehicleId: number | string = Date.now()
 
-      // Try backend Supabase DB with 4-second timeout to avoid UI freeze
       if (user.id) {
         try {
-          const res = await api.post(
-            '/vehicles',
-            {
-              user_id: user.id,
-              user_email: user.email,
-              brand: formData.brand,
-              model: cleanModel,
-              year: formData.year,
-              license_plate: cleanPlate,
-              transmission: formData.transmission,
-            },
-            { timeout: 4000 }
-          )
-          if (res.data?.data?.id) {
-            vehicleId = res.data.data.id
-          }
+          const res = await api.post('/vehicles', {
+            user_id: user.id,
+            user_email: user.email,
+            brand: formData.brand,
+            model: cleanModel,
+            year: formData.year,
+            license_plate: cleanPlate,
+            transmission: formData.transmission,
+          }, { timeout: 4000 })
+          if (res.data?.data?.id) vehicleId = res.data.data.id
         } catch (err) {
           console.warn('Backend vehicle insert warning:', err)
         }
@@ -273,15 +177,11 @@ export default function UserVehiclesTab({
         transmission: formData.transmission,
       }
 
-      // Save locally for this user (deduplicate by plate)
-      const currentList = vehicles.filter(
-        (v) => v.license_plate.trim().toUpperCase() !== cleanPlate
-      )
+      const currentList = vehicles.filter((v) => v.license_plate.trim().toUpperCase() !== cleanPlate)
       const updated = [newVehicle, ...currentList]
       setVehicles(updated)
       localStorage.setItem(storageKeyVehicles, JSON.stringify(updated))
 
-      // Sync to shared admin vehicles
       syncVehicleToShared({
         id: newVehicle.id,
         user_id: user.id,
@@ -296,13 +196,7 @@ export default function UserVehiclesTab({
       })
 
       setShowAddModal(false)
-      setFormData({
-        brand: 'Honda',
-        model: '',
-        year: new Date().getFullYear().toString(),
-        license_plate: '',
-        transmission: 'automatic',
-      })
+      setFormData({ brand: 'Honda', model: '', year: new Date().getFullYear().toString(), license_plate: '', transmission: 'automatic' })
     } catch (err: any) {
       setError(err?.message || 'Gagal menyimpan kendaraan')
     } finally {
@@ -311,31 +205,25 @@ export default function UserVehiclesTab({
   }
 
   const handleDeleteVehicle = async (plate: string) => {
-    if (window.confirm(`Hapus kendaraan dengan plat ${plate}?`)) {
-      const targetVeh = vehicles.find((v) => v.license_plate === plate)
-      const updated = vehicles.filter((v) => v.license_plate !== plate)
-      setVehicles(updated)
-      localStorage.setItem(storageKeyVehicles, JSON.stringify(updated))
+    if (!window.confirm(`Hapus kendaraan dengan plat ${plate}?`)) return
+    const targetVeh = vehicles.find((v) => v.license_plate === plate)
+    const updated = vehicles.filter((v) => v.license_plate !== plate)
+    setVehicles(updated)
+    localStorage.setItem(storageKeyVehicles, JSON.stringify(updated))
 
-      // Delete from backend Supabase
-      if (targetVeh?.id) {
-        api.delete(`/vehicles/${targetVeh.id}`).catch(() => {})
-      } else {
-        api.delete(`/vehicles/${plate}`).catch(() => {})
+    if (targetVeh?.id) api.delete(`/vehicles/${targetVeh.id}`).catch(() => {})
+    else api.delete(`/vehicles/${plate}`).catch(() => {})
+
+    try {
+      const sharedRaw = localStorage.getItem('tb_admin_shared_vehicles')
+      if (sharedRaw) {
+        const sharedArr = JSON.parse(sharedRaw)
+        localStorage.setItem(
+          'tb_admin_shared_vehicles',
+          JSON.stringify(sharedArr.filter((v: any) => v.license_plate?.trim().toUpperCase() !== plate.trim().toUpperCase()))
+        )
       }
-
-      // Also remove from shared admin vehicles
-      try {
-        const sharedRaw = localStorage.getItem('tb_admin_shared_vehicles')
-        if (sharedRaw) {
-          const sharedArr = JSON.parse(sharedRaw)
-          localStorage.setItem(
-            'tb_admin_shared_vehicles',
-            JSON.stringify(sharedArr.filter((v: any) => v.license_plate?.trim().toUpperCase() !== plate.trim().toUpperCase()))
-          )
-        }
-      } catch {}
-    }
+    } catch {}
   }
 
   return (
@@ -350,17 +238,12 @@ export default function UserVehiclesTab({
           </p>
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="tb-btn-primary"
-          style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
-        >
+        <button onClick={() => setShowAddModal(true)} className="tb-btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}>
           <Plus size={15} />
           <span>Tambah Kendaraan Baru</span>
         </button>
       </div>
 
-      {/* Grid Kendaraan */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', fontSize: '0.875rem' }}>
           Memuat data kendaraan Anda...
@@ -375,29 +258,11 @@ export default function UserVehiclesTab({
               <div
                 key={v.license_plate}
                 className="tb-card"
-                style={{
-                  padding: '1.5rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  borderTop: `4px solid ${statusInfo.dot}`,
-                }}
+                style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', borderTop: `4px solid ${statusInfo.dot}` }}
               >
-                {/* Header Card */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                   <div>
-                    <span
-                      style={{
-                        fontSize: '0.6875rem',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        color: '#64748b',
-                        backgroundColor: '#f1f5f9',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '0.375rem',
-                        marginRight: '0.5rem',
-                      }}
-                    >
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', backgroundColor: '#f1f5f9', padding: '0.2rem 0.5rem', borderRadius: '0.375rem', marginRight: '0.5rem' }}>
                       {v.brand}
                     </span>
                     <span style={{ fontSize: '0.8125rem', color: '#94a3b8' }}>Tahun {v.year}</span>
@@ -406,32 +271,12 @@ export default function UserVehiclesTab({
                     </h3>
                   </div>
 
-                  <span
-                    style={{
-                      fontSize: '0.875rem',
-                      fontWeight: 800,
-                      color: '#0f172a',
-                      backgroundColor: '#f8fafc',
-                      border: '1px solid #cbd5e1',
-                      padding: '0.25rem 0.625rem',
-                      borderRadius: '0.375rem',
-                      letterSpacing: '0.05em',
-                    }}
-                  >
+                  <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0f172a', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', padding: '0.25rem 0.625rem', borderRadius: '0.375rem', letterSpacing: '0.05em' }}>
                     {v.license_plate}
                   </span>
                 </div>
 
-                {/* Individual Vehicle Status Banner */}
-                <div
-                  style={{
-                    backgroundColor: statusInfo.bg,
-                    border: `1px solid ${statusInfo.border}`,
-                    borderRadius: '0.625rem',
-                    padding: '0.75rem',
-                    marginBottom: '1.25rem',
-                  }}
-                >
+                <div style={{ backgroundColor: statusInfo.bg, border: `1px solid ${statusInfo.border}`, borderRadius: '0.625rem', padding: '0.75rem', marginBottom: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                     <StatusIcon size={15} color={statusInfo.color} />
                     <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: statusInfo.color }}>
@@ -443,55 +288,22 @@ export default function UserVehiclesTab({
                   </p>
                 </div>
 
-                {/* Transmission Meta */}
                 <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>
                   Tipe Transmisi: <strong>{v.transmission || 'Standar'}</strong>
                 </div>
 
-                {/* Action Buttons for this vehicle */}
-                <div
-                  style={{
-                    marginTop: 'auto',
-                    paddingTop: '1rem',
-                    borderTop: '1px solid #f1f5f9',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <button
-                    onClick={() => onBookForVehicle(v)}
-                    className="tb-btn-primary"
-                    style={{ padding: '0.4375rem 0.75rem', fontSize: '0.75rem', flex: 1, justifyContent: 'center' }}
-                  >
+                <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <button onClick={() => onBookForVehicle(v)} className="tb-btn-primary" style={{ padding: '0.4375rem 0.75rem', fontSize: '0.75rem', flex: 1, justifyContent: 'center' }}>
                     <Wrench size={13} />
                     <span>Servis Kendaraan Ini</span>
                   </button>
 
-                  <button
-                    onClick={() => onViewVehicleBookings(v.license_plate)}
-                    className="tb-btn-secondary"
-                    style={{ padding: '0.4375rem 0.75rem', fontSize: '0.75rem' }}
-                    title="Lihat Riwayat Servis Kendaraan Ini"
-                  >
+                  <button onClick={() => onViewVehicleBookings(v.license_plate)} className="tb-btn-secondary" style={{ padding: '0.4375rem 0.75rem', fontSize: '0.75rem' }} title="Lihat Riwayat Servis Kendaraan Ini">
                     <Calendar size={13} />
                     <span>Riwayat</span>
                   </button>
 
-                  <button
-                    onClick={() => handleDeleteVehicle(v.license_plate)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#cbd5e1',
-                      cursor: 'pointer',
-                      padding: '0.375rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                    title="Hapus Kendaraan"
-                  >
+                  <button onClick={() => handleDeleteVehicle(v.license_plate)} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '0.375rem', display: 'flex', alignItems: 'center' }} title="Hapus Kendaraan">
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -515,28 +327,11 @@ export default function UserVehiclesTab({
       {/* Modal Tambah Kendaraan */}
       {showAddModal && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.5)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-          }}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(4px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
           onClick={() => setShowAddModal(false)}
         >
           <div
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '1rem',
-              maxWidth: '480px',
-              width: '100%',
-              padding: '1.75rem',
-              border: '1px solid #e2e8f0',
-            }}
+            style={{ backgroundColor: '#ffffff', borderRadius: '1rem', maxWidth: '480px', width: '100%', padding: '1.75rem', border: '1px solid #e2e8f0' }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ fontSize: '1.125rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>
@@ -547,20 +342,7 @@ export default function UserVehiclesTab({
             </p>
 
             {error && (
-              <div
-                style={{
-                  backgroundColor: '#fee2e2',
-                  border: '1px solid #fca5a5',
-                  color: '#991b1b',
-                  borderRadius: '0.5rem',
-                  padding: '0.625rem',
-                  fontSize: '0.8125rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  marginBottom: '1rem',
-                }}
-              >
+              <div style={{ backgroundColor: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '0.5rem', padding: '0.625rem', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                 <AlertCircle size={15} />
                 <span>{error}</span>
               </div>
@@ -570,67 +352,31 @@ export default function UserVehiclesTab({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label className="tb-label">Merk</label>
-                  <select
-                    value={formData.brand}
-                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                    className="tb-select"
-                  >
-                    <option value="Honda">Honda</option>
-                    <option value="Yamaha">Yamaha</option>
-                    <option value="Suzuki">Suzuki</option>
-                    <option value="Kawasaki">Kawasaki</option>
-                    <option value="Vespa">Vespa</option>
-                    <option value="Toyota">Toyota</option>
-                    <option value="Daihatsu">Daihatsu</option>
-                    <option value="Mitsubishi">Mitsubishi</option>
-                    <option value="Lainnya">Lainnya</option>
+                  <select value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })} className="tb-select">
+                    {['Honda', 'Yamaha', 'Suzuki', 'Kawasaki', 'Vespa', 'Toyota', 'Daihatsu', 'Mitsubishi', 'Lainnya'].map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
                   </select>
                 </div>
-
                 <div>
                   <label className="tb-label">Tahun Pembuatan</label>
-                  <input
-                    type="number"
-                    value={formData.year}
-                    onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                    className="tb-input"
-                    required
-                  />
+                  <input type="number" value={formData.year} onChange={(e) => setFormData({ ...formData, year: e.target.value })} className="tb-input" required />
                 </div>
               </div>
 
               <div>
                 <label className="tb-label">Model / Tipe Kendaraan</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Vario 160 / NMAX 155 / Avanza"
-                  value={formData.model}
-                  onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                  className="tb-input"
-                  required
-                />
+                <input type="text" placeholder="Contoh: Vario 160 / NMAX 155 / Avanza" value={formData.model} onChange={(e) => setFormData({ ...formData, model: e.target.value })} className="tb-input" required />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label className="tb-label">Nomor Polisi (Plat)</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: B 1234 ABC"
-                    value={formData.license_plate}
-                    onChange={(e) => setFormData({ ...formData, license_plate: e.target.value })}
-                    className="tb-input"
-                    required
-                  />
+                  <input type="text" placeholder="Contoh: B 1234 ABC" value={formData.license_plate} onChange={(e) => setFormData({ ...formData, license_plate: e.target.value })} className="tb-input" required />
                 </div>
-
                 <div>
                   <label className="tb-label">Transmisi</label>
-                  <select
-                    value={formData.transmission}
-                    onChange={(e) => setFormData({ ...formData, transmission: e.target.value })}
-                    className="tb-select"
-                  >
+                  <select value={formData.transmission} onChange={(e) => setFormData({ ...formData, transmission: e.target.value })} className="tb-select">
                     <option value="automatic">Matic (CVT / Otomatis)</option>
                     <option value="manual">Manual / Kopling</option>
                   </select>
@@ -638,20 +384,10 @@ export default function UserVehiclesTab({
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="tb-btn-secondary"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                >
+                <button type="button" onClick={() => setShowAddModal(false)} className="tb-btn-secondary" style={{ flex: 1, justifyContent: 'center' }}>
                   Batal
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="tb-btn-primary"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                >
+                <button type="submit" disabled={submitting} className="tb-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                   {submitting ? 'Menyimpan...' : 'Simpan ke Garasi'}
                 </button>
               </div>

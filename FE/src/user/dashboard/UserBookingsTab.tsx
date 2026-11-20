@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Car, ChevronRight, Wrench, RefreshCw, Star } from 'lucide-react'
+import { Calendar, Car, ChevronRight, Wrench, RefreshCw } from 'lucide-react'
 import api from '../../api/axios'
 import type { CustomerUser } from '../../hooks/useCustomerAuth'
 import BookingDetailModal from './BookingDetailModal'
-import type {
-  UserBookingRecord,
-  UserVehicle,
-} from './userStorage'
+import BookingStatusBadge from '../../components/BookingStatusBadge'
+import type { UserBookingRecord, UserVehicle } from './userStorage'
 import {
   getUserStorageKey,
   getInitialBookingsForUser,
   getInitialVehiclesForUser,
-  getBookingRating,
 } from './userStorage'
 import { fetchAllServices, getLocalServices } from './serviceStorage'
 import type { GarageService } from './serviceStorage'
@@ -35,30 +32,15 @@ export default function UserBookingsTab({
   const [selectedBooking, setSelectedBooking] = useState<UserBookingRecord | null>(null)
   const [serviceCatalog, setServiceCatalog] = useState<GarageService[]>(() => getLocalServices())
 
-  useEffect(() => {
-    fetchAllServices().then((list) => {
-      if (list && list.length > 0) setServiceCatalog(list)
-    })
-  }, [])
-
   const storageKeyBookings = getUserStorageKey(user, 'bookings')
   const storageKeyVehicles = getUserStorageKey(user, 'vehicles')
 
   const fetchBookings = () => {
     setLoading(true)
 
-    // Load vehicles for vehicle filter pills
     const savedVehicles = localStorage.getItem(storageKeyVehicles)
-    if (savedVehicles) {
-      try {
-        setVehicles(JSON.parse(savedVehicles))
-      } catch {}
-    } else {
-      const initialV = getInitialVehiclesForUser(user)
-      setVehicles(initialV)
-    }
+    setVehicles(savedVehicles ? JSON.parse(savedVehicles) : getInitialVehiclesForUser(user))
 
-    // Try backend if user exists
     if (user.id) {
       api
         .get(`/bookings/user/${user.id}`)
@@ -75,9 +57,7 @@ export default function UserBookingsTab({
             loadLocalBookings()
           }
         })
-        .catch(() => {
-          loadLocalBookings()
-        })
+        .catch(() => loadLocalBookings())
         .finally(() => setLoading(false))
     } else {
       loadLocalBookings()
@@ -100,6 +80,9 @@ export default function UserBookingsTab({
 
   useEffect(() => {
     fetchBookings()
+    fetchAllServices().then((list) => {
+      if (list && list.length > 0) setServiceCatalog(list)
+    })
     const handleRefresh = () => fetchBookings()
     window.addEventListener('tb_rating_created', handleRefresh)
     window.addEventListener('tb_booking_status_updated', handleRefresh)
@@ -112,75 +95,38 @@ export default function UserBookingsTab({
   }, [user.email, user.id])
 
   useEffect(() => {
-    if (filterVehiclePlate) {
-      setSelectedPlate(filterVehiclePlate)
-    }
+    if (filterVehiclePlate) setSelectedPlate(filterVehiclePlate)
   }, [filterVehiclePlate])
 
-  // Filter bookings by status and vehicle
   const filteredBookings = bookings.filter((b) => {
-    // Status filter
     const isCompleted = b.status === 'Selesai'
     const isCancelled = b.status === 'Dibatalkan'
     if (statusFilter === 'active' && (isCompleted || isCancelled)) return false
     if (statusFilter === 'completed' && !isCompleted) return false
-
-    // Vehicle plate filter
-    if (selectedPlate !== 'all') {
-      const bPlate = (b.license_plate || '').trim().toUpperCase()
-      const sPlate = selectedPlate.trim().toUpperCase()
-      if (bPlate !== sPlate) return false
-    }
-
+    if (selectedPlate !== 'all' && (b.license_plate || '').trim().toUpperCase() !== selectedPlate.trim().toUpperCase()) return false
     return true
   })
 
   const activeCount = bookings.filter((b) => b.status !== 'Selesai' && b.status !== 'Dibatalkan').length
   const completedCount = bookings.filter((b) => b.status === 'Selesai').length
 
-  const getStatusBadge = (status: string) => {
-    if (status === 'Dibatalkan') {
-      return (
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.375rem',
-            padding: '0.25rem 0.625rem',
-            borderRadius: '9999px',
-            fontSize: '0.75rem',
-            fontWeight: 700,
-            backgroundColor: '#fef2f2',
-            color: '#dc2626',
-            border: '1px solid #fecaca',
-          }}
-        >
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor' }} />
-          Dibatalkan
-        </span>
-      )
-    }
-    const isDone = status === 'Selesai'
-    const isProgress = status === 'Diproses' || status === 'Sedang Dikerjakan'
-    return (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.375rem',
-          padding: '0.25rem 0.625rem',
-          borderRadius: '9999px',
-          fontSize: '0.75rem',
-          fontWeight: 700,
-          backgroundColor: isDone ? '#dcfce7' : isProgress ? '#eff6ff' : '#fff7ed',
-          color: isDone ? '#15803d' : isProgress ? '#1d4ed8' : '#ea580c',
-          border: `1px solid ${isDone ? '#bbf7d0' : isProgress ? '#bfdbfe' : '#ffedd5'}`,
-        }}
-      >
-        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor' }} />
-        {status === 'Menunggu Pembayaran' ? 'Menunggu Pembayaran Cash' : status}
-      </span>
+  const stats = [
+    { label: 'Total Riwayat Servis', count: bookings.length, color: '#0f172a' },
+    { label: 'Servis Aktif / Berjalan', count: activeCount, color: '#ea580c', border: activeCount > 0 ? '#fed7aa' : undefined },
+    { label: 'Servis Selesai', count: completedCount, color: '#16a34a' },
+  ]
+
+  const resolveBookingPrices = (b: UserBookingRecord) => {
+    const matchedSvc = serviceCatalog.find(
+      (s) => (b.service_id && Number(s.id) === Number(b.service_id)) || (s.name && s.name.trim().toLowerCase() === String(b.service_name || '').trim().toLowerCase())
     )
+    const svcPrice = Number(
+      b.service_price !== undefined && b.service_price !== null && Number(b.service_price) > 0
+        ? b.service_price
+        : (matchedSvc?.price !== undefined && matchedSvc?.price !== null && Number(matchedSvc.price) > 0 ? matchedSvc.price : 100000)
+    )
+    const total = Number(b.total_price && Number(b.total_price) > svcPrice ? b.total_price : svcPrice)
+    return { svcPrice, total }
   }
 
   return (
@@ -198,20 +144,11 @@ export default function UserBookingsTab({
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              onClick={fetchBookings}
-              className="tb-btn-secondary"
-              style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }}
-              title="Perbarui Data"
-            >
+            <button onClick={fetchBookings} className="tb-btn-secondary" style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }} title="Perbarui Data">
               <RefreshCw size={14} />
               <span>Refresh</span>
             </button>
-            <button
-              onClick={onNewBookingClick}
-              className="tb-btn-primary"
-              style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
-            >
+            <button onClick={onNewBookingClick} className="tb-btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}>
               <Wrench size={14} />
               <span>Booking Servis Baru</span>
             </button>
@@ -220,32 +157,19 @@ export default function UserBookingsTab({
 
         {/* Quick Stats Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-          <div className="tb-card" style={{ padding: '1.25rem' }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Total Riwayat Servis</span>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginTop: '0.25rem' }}>
-              {bookings.length}
+          {stats.map((st, i) => (
+            <div key={i} className="tb-card" style={{ padding: '1.25rem', borderColor: st.border }}>
+              <span style={{ fontSize: '0.75rem', color: st.color === '#0f172a' ? '#64748b' : st.color, fontWeight: 600 }}>{st.label}</span>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: st.color, marginTop: '0.25rem' }}>
+                {st.count}
+              </div>
             </div>
-          </div>
-
-          <div className="tb-card" style={{ padding: '1.25rem', borderColor: activeCount > 0 ? '#fed7aa' : '#e2e8f0' }}>
-            <span style={{ fontSize: '0.75rem', color: '#ea580c', fontWeight: 600 }}>Servis Aktif / Berjalan</span>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ea580c', marginTop: '0.25rem' }}>
-              {activeCount}
-            </div>
-          </div>
-
-          <div className="tb-card" style={{ padding: '1.25rem' }}>
-            <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>Servis Selesai</span>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#16a34a', marginTop: '0.25rem' }}>
-              {completedCount}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
       {/* Filter by Vehicle & Filter by Status */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        {/* Vehicle Selector Pills */}
         {vehicles.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -253,27 +177,10 @@ export default function UserBookingsTab({
               <span>Filter Kendaraan:</span>
             </span>
 
-            <button
-              onClick={() => setSelectedPlate('all')}
-              style={{
-                padding: '0.3rem 0.625rem',
-                borderRadius: '0.375rem',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                border: '1px solid',
-                cursor: 'pointer',
-                borderColor: selectedPlate === 'all' ? '#f97316' : '#e2e8f0',
-                backgroundColor: selectedPlate === 'all' ? '#fff7ed' : '#ffffff',
-                color: selectedPlate === 'all' ? '#ea580c' : '#475569',
-              }}
-            >
-              Semua Kendaraan
-            </button>
-
-            {vehicles.map((v) => (
+            {[{ plate: 'all', label: 'Semua Kendaraan' }, ...vehicles.map(v => ({ plate: v.license_plate, label: `${v.model} (${v.license_plate})` }))].map(item => (
               <button
-                key={v.license_plate}
-                onClick={() => setSelectedPlate(v.license_plate)}
+                key={item.plate}
+                onClick={() => setSelectedPlate(item.plate)}
                 style={{
                   padding: '0.3rem 0.625rem',
                   borderRadius: '0.375rem',
@@ -281,12 +188,12 @@ export default function UserBookingsTab({
                   fontWeight: 600,
                   border: '1px solid',
                   cursor: 'pointer',
-                  borderColor: selectedPlate === v.license_plate ? '#f97316' : '#e2e8f0',
-                  backgroundColor: selectedPlate === v.license_plate ? '#fff7ed' : '#ffffff',
-                  color: selectedPlate === v.license_plate ? '#ea580c' : '#475569',
+                  borderColor: selectedPlate === item.plate ? '#f97316' : '#e2e8f0',
+                  backgroundColor: selectedPlate === item.plate ? '#fff7ed' : '#ffffff',
+                  color: selectedPlate === item.plate ? '#ea580c' : '#475569',
                 }}
               >
-                {v.model} ({v.license_plate})
+                {item.label}
               </button>
             ))}
           </div>
@@ -294,194 +201,99 @@ export default function UserBookingsTab({
 
         {/* Status Filter Tabs */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => setStatusFilter('all')}
-            style={{
-              padding: '0.4rem 0.875rem',
-              borderRadius: '0.5rem',
-              border: '1px solid',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              borderColor: statusFilter === 'all' ? '#f97316' : '#e2e8f0',
-              backgroundColor: statusFilter === 'all' ? '#fff7ed' : '#ffffff',
-              color: statusFilter === 'all' ? '#ea580c' : '#64748b',
-            }}
-          >
-            Semua Status
-          </button>
-          <button
-            onClick={() => setStatusFilter('active')}
-            style={{
-              padding: '0.4rem 0.875rem',
-              borderRadius: '0.5rem',
-              border: '1px solid',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              borderColor: statusFilter === 'active' ? '#f97316' : '#e2e8f0',
-              backgroundColor: statusFilter === 'active' ? '#fff7ed' : '#ffffff',
-              color: statusFilter === 'active' ? '#ea580c' : '#64748b',
-            }}
-          >
-            Sedang Berjalan ({activeCount})
-          </button>
-          <button
-            onClick={() => setStatusFilter('completed')}
-            style={{
-              padding: '0.4rem 0.875rem',
-              borderRadius: '0.5rem',
-              border: '1px solid',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              borderColor: statusFilter === 'completed' ? '#f97316' : '#e2e8f0',
-              backgroundColor: statusFilter === 'completed' ? '#fff7ed' : '#ffffff',
-              color: statusFilter === 'completed' ? '#ea580c' : '#64748b',
-            }}
-          >
-            Selesai ({completedCount})
-          </button>
+          {[
+            { id: 'all', label: `Semua (${bookings.length})` },
+            { id: 'active', label: `Aktif (${activeCount})` },
+            { id: 'completed', label: `Selesai (${completedCount})` },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id as any)}
+              style={{
+                padding: '0.4rem 0.875rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                border: '1px solid',
+                cursor: 'pointer',
+                borderColor: statusFilter === tab.id ? '#ea580c' : '#cbd5e1',
+                backgroundColor: statusFilter === tab.id ? '#ea580c' : '#f8fafc',
+                color: statusFilter === tab.id ? '#ffffff' : '#64748b',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Bookings List */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', fontSize: '0.875rem' }}>
-          Memuat data pesanan servis...
+        <div style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b', fontSize: '0.875rem' }}>
+          Memuat riwayat servis...
         </div>
       ) : filteredBookings.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {filteredBookings.map((b) => (
-            <div
-              key={b.id || b.booking_code}
-              className="tb-card"
-              style={{
-                padding: '1.25rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '1rem',
-              }}
-            >
-              <div style={{ flex: '1 1 300px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f97316' }}>
-                    {b.booking_code}
-                  </span>
-                  {getStatusBadge(b.status)}
-                  {b.status === 'Selesai' && (() => {
-                    const r = getBookingRating(b.booking_code || b.id)
-                    return r ? (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '9999px',
-                          backgroundColor: '#fef3c7',
-                          color: '#d97706',
-                          fontSize: '0.6875rem',
-                          fontWeight: 700,
-                          border: '1px solid #fde68a',
-                        }}
-                      >
-                        <Star size={11} fill="#d97706" color="#d97706" />
-                        <span>{r.rating}/5</span>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedBooking(b)
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '9999px',
-                          backgroundColor: '#fff7ed',
-                          color: '#ea580c',
-                          fontSize: '0.6875rem',
-                          fontWeight: 700,
-                          border: '1px solid #fed7aa',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Star size={11} color="#ea580c" />
-                        <span>Beri Rating</span>
-                      </button>
-                    )
-                  })()}
+          {filteredBookings.map((b) => {
+            const { svcPrice, total } = resolveBookingPrices(b)
+            return (
+              <div
+                key={b.booking_code || b.id}
+                className="tb-card"
+                style={{
+                  padding: '1.25rem 1.5rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  borderLeft: `4px solid ${b.status === 'Selesai' ? '#16a34a' : b.status === 'Dibatalkan' ? '#dc2626' : '#f97316'}`,
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', flex: 1, minWidth: '240px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#ea580c', letterSpacing: '0.02em' }}>
+                      {b.booking_code}
+                    </span>
+                    <BookingStatusBadge status={b.status} />
+                  </div>
+
+                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                    {b.service_name}
+                  </h3>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8125rem', color: '#64748b', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontWeight: 600, color: '#0f172a' }}>
+                      <Car size={14} color="#f97316" />
+                      {b.vehicle_brand} {b.vehicle_model} ({b.license_plate})
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                      <Calendar size={14} />
+                      {b.booking_date} • {b.booking_time} WIB
+                    </span>
+                  </div>
                 </div>
 
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.25rem' }}>
-                  {b.service_name}
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#94a3b8', display: 'block' }}>Estimasi Biaya</span>
+                    <span style={{ fontSize: '1.0625rem', fontWeight: 800, color: '#0f172a' }}>
+                      Rp {total.toLocaleString('id-ID')}
+                    </span>
+                  </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8125rem', color: '#64748b', flexWrap: 'wrap' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontWeight: 600, color: '#0f172a' }}>
-                    <Car size={14} color="#f97316" />
-                    {b.vehicle_brand} {b.vehicle_model} ({b.license_plate})
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                    <Calendar size={14} />
-                    {b.booking_date} • {b.booking_time} WIB
-                  </span>
+                  <button
+                    onClick={() => setSelectedBooking({ ...b, service_price: svcPrice, total_price: total })}
+                    className="tb-btn-secondary"
+                    style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }}
+                  >
+                    <span>Lihat Rincian</span>
+                    <ChevronRight size={14} />
+                  </button>
                 </div>
               </div>
-
-              {(() => {
-                const matchedSvc = serviceCatalog.find(
-                  (s) =>
-                    (b.service_id && Number(s.id) === Number(b.service_id)) ||
-                    (s.name && s.name.trim().toLowerCase() === String(b.service_name || '').trim().toLowerCase())
-                )
-                const resolvedSvcPrice = Number(
-                  b.service_price !== undefined && b.service_price !== null && Number(b.service_price) > 0
-                    ? b.service_price
-                    : (matchedSvc?.price !== undefined && matchedSvc?.price !== null && Number(matchedSvc.price) > 0
-                        ? matchedSvc.price
-                        : 100000)
-                )
-                const displayTotal = Number(
-                  b.total_price && Number(b.total_price) > resolvedSvcPrice
-                    ? b.total_price
-                    : resolvedSvcPrice
-                )
-
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.6875rem', color: '#94a3b8', display: 'block' }}>Estimasi Biaya</span>
-                      <span style={{ fontSize: '1.0625rem', fontWeight: 800, color: '#0f172a' }}>
-                        Rp {displayTotal.toLocaleString('id-ID')}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() =>
-                        setSelectedBooking({
-                          ...b,
-                          service_price: resolvedSvcPrice,
-                          total_price: displayTotal,
-                        })
-                      }
-                      className="tb-btn-secondary"
-                      style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }}
-                    >
-                      <span>Lihat Rincian</span>
-                      <ChevronRight size={14} />
-                    </button>
-                  </div>
-                )
-              })()}
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <div className="tb-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#64748b' }}>
@@ -495,18 +307,18 @@ export default function UserBookingsTab({
               : 'Anda belum memiliki jadwal pengerjaan servis kendaraan.'}
           </p>
           <button onClick={onNewBookingClick} className="tb-btn-primary" style={{ padding: '0.5rem 1rem' }}>
-            <span>Jadwalkan Servis Sekarang</span>
+            <span>Booking Servis Sekarang</span>
           </button>
         </div>
       )}
 
-      {/* Detail Modal */}
       {selectedBooking && (
         <BookingDetailModal
           booking={selectedBooking}
           onClose={() => setSelectedBooking(null)}
           onPaymentSuccess={() => {
             fetchBookings()
+            setSelectedBooking(null)
           }}
         />
       )}

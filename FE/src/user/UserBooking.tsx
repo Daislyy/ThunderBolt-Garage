@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { CheckCircle2, Send, MessageSquare, AlertCircle, RefreshCw } from 'lucide-react'
 import { syncBookingToAdmin, getMergedAdminBookings } from './dashboard/userStorage'
 import { getLocalServices, fetchAllServices } from './dashboard/serviceStorage'
@@ -8,19 +8,26 @@ interface UserBookingProps {
   onBookingSuccess: (bookingCode: string, platNomor: string) => void
 }
 
-export default function UserBooking({ preselectedService, onBookingSuccess }: UserBookingProps) {
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    vehicleType: 'motor',
-    vehicleModel: '',
-    plateNumber: '',
-    serviceName: 'Servis Berkala & Ganti Oli',
-    bookingDate: new Date().toISOString().split('T')[0],
-    bookingTime: '09:00',
-    notes: '',
-  })
+const initialForm = {
+  name: '',
+  phone: '',
+  vehicleType: 'motor',
+  vehicleModel: '',
+  plateNumber: '',
+  serviceName: 'Servis Berkala & Ganti Oli',
+  bookingDate: new Date().toISOString().split('T')[0],
+  bookingTime: '09:00',
+  notes: '',
+}
 
+const timeSlots = [
+  '08:30', '09:00', '09:30', '10:00', '10:30',
+  '11:00', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00'
+]
+
+export default function UserBooking({ preselectedService, onBookingSuccess }: UserBookingProps) {
+  const [formData, setFormData] = useState(initialForm)
   const [submittedCode, setSubmittedCode] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -30,11 +37,8 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
 
   useEffect(() => {
     fetchAllServices().then((list) => {
-      if (list.length > 0) {
-        setAvailableServices(list.map((s) => s.name))
-      }
+      if (list.length > 0) setAvailableServices(list.map((s) => s.name))
     })
-
     const handleUpdate = () => {
       const list = getLocalServices().map((s) => s.name)
       if (list.length > 0) setAvailableServices(list)
@@ -53,27 +57,22 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
     }
   }, [preselectedService])
 
-  const timeSlots = [
-    '08:30', '09:00', '09:30', '10:00', '10:30',
-    '11:00', '13:00', '13:30', '14:00', '14:30',
-    '15:00', '15:30', '16:00'
-  ]
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     setError('')
 
-    if (!formData.name.trim() || !formData.phone.trim() || !formData.vehicleModel.trim() || !formData.plateNumber.trim()) {
+    const { name, phone, vehicleModel, plateNumber, serviceName, bookingDate, bookingTime, notes } = formData
+    if (!name.trim() || !phone.trim() || !vehicleModel.trim() || !plateNumber.trim()) {
       setError('Mohon lengkapi nama, nomor WhatsApp, model kendaraan, dan plat nomor.')
       return
     }
 
-    const cleanPlate = formData.plateNumber.trim().toUpperCase()
+    const cleanPlate = plateNumber.trim().toUpperCase()
     const allBookings = getMergedAdminBookings([])
     const ongoing = allBookings.find(
       (b) =>
@@ -89,62 +88,51 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
     }
 
     setLoading(true)
+    const code = `TB-${Math.floor(1000 + Math.random() * 9000)}`
 
-    // Generate unique user-friendly booking reference: e.g. TB-7492
-    const randomDigits = Math.floor(1000 + Math.random() * 9000)
-    const code = `TB-${randomDigits}`
-
-    // Store in localStorage for user tracking persistence
     const savedBookings = JSON.parse(localStorage.getItem('tb_user_bookings') || '[]')
     const newEntry = {
       code,
-      name: formData.name,
-      phone: formData.phone,
-      vehicle: `${formData.vehicleModel} (${formData.plateNumber.toUpperCase()})`,
-      plateNumber: formData.plateNumber.toUpperCase(),
-      service: formData.serviceName,
-      date: formData.bookingDate,
-      time: formData.bookingTime,
+      name,
+      phone,
+      vehicle: `${vehicleModel} (${cleanPlate})`,
+      plateNumber: cleanPlate,
+      service: serviceName,
+      date: bookingDate,
+      time: bookingTime,
       status: 'Menunggu',
-      notes: formData.notes,
+      notes,
       createdAt: new Date().toISOString(),
     }
     localStorage.setItem('tb_user_bookings', JSON.stringify([newEntry, ...savedBookings]))
 
-    // Sync directly to Admin Dashboard & Bookings
-    const brandGuess = formData.vehicleModel.split(' ')[0] || 'Kendaraan'
     syncBookingToAdmin({
       id: Date.now(),
       booking_code: code,
-      customer_name: formData.name,
-      customer_email: `${formData.name.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
-      vehicle_brand: brandGuess,
-      vehicle_model: formData.vehicleModel,
-      license_plate: formData.plateNumber.toUpperCase(),
-      service_name: formData.serviceName,
-      booking_date: formData.bookingDate,
-      booking_time: formData.bookingTime,
+      customer_name: name,
+      customer_email: `${name.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
+      vehicle_brand: vehicleModel.split(' ')[0] || 'Kendaraan',
+      vehicle_model: vehicleModel,
+      license_plate: cleanPlate,
+      service_name: serviceName,
+      booking_date: bookingDate,
+      booking_time: bookingTime,
       status: 'Menunggu',
       total_price: 150000,
-      notes: formData.notes,
+      notes,
       created_at: new Date().toISOString(),
     })
 
     setTimeout(() => {
       setLoading(false)
       setSubmittedCode(code)
-      onBookingSuccess(code, formData.plateNumber.toUpperCase())
+      onBookingSuccess(code, cleanPlate)
     }, 400)
   }
 
   const handleReset = () => {
     setSubmittedCode(null)
-    setFormData((prev) => ({
-      ...prev,
-      vehicleModel: '',
-      plateNumber: '',
-      notes: '',
-    }))
+    setFormData((prev) => ({ ...prev, vehicleModel: '', plateNumber: '', notes: '' }))
   }
 
   const waText = encodeURIComponent(
@@ -171,24 +159,10 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
 
         <div style={{ maxWidth: '680px', margin: '0 auto' }}>
           {submittedCode ? (
-            /* Confirmation card */
             <div className="tb-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', borderColor: '#fed7aa' }}>
-              <div
-                style={{
-                  width: '3.5rem',
-                  height: '3.5rem',
-                  borderRadius: '50%',
-                  backgroundColor: '#dcfce7',
-                  color: '#16a34a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1.25rem',
-                }}
-              >
+              <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '50%', backgroundColor: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
                 <CheckCircle2 size={32} />
               </div>
-
               <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>
                 Booking Berhasil Terdaftar!
               </h3>
@@ -196,16 +170,7 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
                 Simpan kode booking Anda untuk memeriksa status pengerjaan saat di bengkel.
               </p>
 
-              <div
-                style={{
-                  backgroundColor: '#fff7ed',
-                  border: '1px dashed #fdba74',
-                  borderRadius: '0.75rem',
-                  padding: '1rem',
-                  marginBottom: '1.5rem',
-                  display: 'inline-block',
-                }}
-              >
+              <div style={{ backgroundColor: '#fff7ed', border: '1px dashed #fdba74', borderRadius: '0.75rem', padding: '1rem', marginBottom: '1.5rem', display: 'inline-block' }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Kode Booking Anda
                 </span>
@@ -214,19 +179,7 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
                 </div>
               </div>
 
-              <div
-                style={{
-                  textAlign: 'left',
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.5rem',
-                  padding: '1rem',
-                  fontSize: '0.875rem',
-                  lineHeight: 1.6,
-                  color: '#334155',
-                  marginBottom: '1.5rem',
-                }}
-              >
+              <div style={{ textAlign: 'left', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem', fontSize: '0.875rem', lineHeight: 1.6, color: '#334155', marginBottom: '1.5rem' }}>
                 <div><strong>Nama:</strong> {formData.name}</div>
                 <div><strong>Kendaraan:</strong> {formData.vehicleModel} ({formData.plateNumber.toUpperCase()})</div>
                 <div><strong>Layanan:</strong> {formData.serviceName}</div>
@@ -234,17 +187,10 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <a
-                  href={`https://wa.me/6281319233748?text=${waText}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="tb-btn-primary"
-                  style={{ backgroundColor: '#22c55e' }}
-                >
+                <a href={`https://wa.me/6281319233748?text=${waText}`} target="_blank" rel="noopener noreferrer" className="tb-btn-primary" style={{ backgroundColor: '#22c55e' }}>
                   <MessageSquare size={16} />
                   <span>Kirim ke WhatsApp Bengkel</span>
                 </a>
-
                 <button onClick={handleReset} className="tb-btn-secondary">
                   <RefreshCw size={15} />
                   <span>Buat Booking Lain</span>
@@ -252,23 +198,9 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
               </div>
             </div>
           ) : (
-            /* Booking Form */
             <form onSubmit={handleSubmit} className="tb-card" style={{ padding: '2rem' }}>
               {error && (
-                <div
-                  style={{
-                    backgroundColor: '#fee2e2',
-                    border: '1px solid #fca5a5',
-                    color: '#991b1b',
-                    borderRadius: '0.5rem',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.8125rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    marginBottom: '1.25rem',
-                  }}
-                >
+                <div style={{ backgroundColor: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '0.5rem', padding: '0.75rem 1rem', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                   <AlertCircle size={16} />
                   <span>{error}</span>
                 </div>
@@ -277,104 +209,45 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label className="tb-label">Nama Lengkap *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Contoh: Muhammad Attar Putra Pratama"
-                    className="tb-input"
-                    required
-                  />
+                  <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Contoh: Muhammad Attar" className="tb-input" required />
                 </div>
-
                 <div>
                   <label className="tb-label">Nomor WhatsApp Aktif *</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="Contoh: 081319233748"
-                    className="tb-input"
-                    required
-                  />
+                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="Contoh: 081319233748" className="tb-input" required />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label className="tb-label">Merk & Tipe Kendaraan *</label>
-                  <input
-                    type="text"
-                    name="vehicleModel"
-                    value={formData.vehicleModel}
-                    onChange={handleChange}
-                    placeholder="Contoh: Vario 160 / Avanza 2021"
-                    className="tb-input"
-                    required
-                  />
+                  <input type="text" name="vehicleModel" value={formData.vehicleModel} onChange={handleChange} placeholder="Contoh: Vario 160 / Avanza" className="tb-input" required />
                 </div>
-
                 <div>
                   <label className="tb-label">Nomor Polisi (Plat) *</label>
-                  <input
-                    type="text"
-                    name="plateNumber"
-                    value={formData.plateNumber}
-                    onChange={handleChange}
-                    placeholder="Contoh: B 1234 ABC"
-                    className="tb-input"
-                    required
-                  />
+                  <input type="text" name="plateNumber" value={formData.plateNumber} onChange={handleChange} placeholder="Contoh: B 1234 ABC" className="tb-input" required />
                 </div>
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
                 <label className="tb-label">Layanan Yang Dibutuhkan *</label>
-                <select
-                  name="serviceName"
-                  value={formData.serviceName}
-                  onChange={handleChange}
-                  className="tb-select"
-                >
+                <select name="serviceName" value={formData.serviceName} onChange={handleChange} className="tb-select">
                   {availableServices.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
+                    <option key={name} value={name}>{name}</option>
                   ))}
-                  <option value="Pengecekan Umum / Diagnosa Keluhan">
-                    Pengecekan Umum / Diagnosa Keluhan
-                  </option>
+                  <option value="Pengecekan Umum / Diagnosa Keluhan">Pengecekan Umum / Diagnosa Keluhan</option>
                 </select>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label className="tb-label">Pilih Tanggal *</label>
-                  <input
-                    type="date"
-                    name="bookingDate"
-                    value={formData.bookingDate}
-                    onChange={handleChange}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="tb-input"
-                    required
-                  />
+                  <input type="date" name="bookingDate" value={formData.bookingDate} onChange={handleChange} min={new Date().toISOString().split('T')[0]} className="tb-input" required />
                 </div>
-
                 <div>
                   <label className="tb-label">Pilih Jam Kedatangan *</label>
-                  <select
-                    name="bookingTime"
-                    value={formData.bookingTime}
-                    onChange={handleChange}
-                    className="tb-select"
-                  >
+                  <select name="bookingTime" value={formData.bookingTime} onChange={handleChange} className="tb-select">
                     {timeSlots.map((time) => (
-                      <option key={time} value={time}>
-                        {time} WIB
-                      </option>
+                      <option key={time} value={time}>{time} WIB</option>
                     ))}
                   </select>
                 </div>
@@ -382,35 +255,12 @@ export default function UserBooking({ preselectedService, onBookingSuccess }: Us
 
               <div style={{ marginBottom: '1.5rem' }}>
                 <label className="tb-label">Keluhan atau Catatan Tambahan (Opsional)</label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  placeholder="Contoh: Ada suara gredek saat tarikan awal, tolong cek kampas ganda."
-                  rows={3}
-                  className="tb-textarea"
-                />
+                <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Contoh: Ada suara gredek saat tarikan awal..." rows={3} className="tb-textarea" />
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="tb-btn-primary"
-                style={{ width: '100%', padding: '0.75rem', fontSize: '0.9375rem', justifyContent: 'center' }}
-              >
-                {loading ? (
-                  <span>Mendaftarkan Jadwal...</span>
-                ) : (
-                  <>
-                    <Send size={16} />
-                    <span>Daftar Booking Servis</span>
-                  </>
-                )}
+              <button type="submit" disabled={loading} className="tb-btn-primary" style={{ width: '100%', padding: '0.75rem', fontSize: '0.9375rem', justifyContent: 'center' }}>
+                {loading ? <span>Mendaftarkan Jadwal...</span> : <><Send size={16} /><span>Daftar Booking Servis</span></>}
               </button>
-
-              <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.75rem' }}>
-                Konfirmasi pendaftaran akan dikirimkan langsung dan tercatat di sistem bengkel.
-              </p>
             </form>
           )}
         </div>
