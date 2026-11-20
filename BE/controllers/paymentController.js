@@ -105,6 +105,11 @@ export const paymentController = {
         token: transaction.token,
         redirect_url: transaction.redirect_url,
         order_id: orderId,
+        data: {
+          token: transaction.token,
+          redirect_url: transaction.redirect_url,
+          order_id: orderId,
+        },
       });
     } catch (error) {
       console.error('Midtrans createSnapToken error:', error);
@@ -158,6 +163,10 @@ export const paymentController = {
         success: true,
         message: 'Permintaan pembayaran cash telah dikirim ke admin bengkel',
         order_id: orderId,
+        data: {
+          message: 'Permintaan pembayaran cash telah dikirim ke admin bengkel',
+          order_id: orderId,
+        },
       });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

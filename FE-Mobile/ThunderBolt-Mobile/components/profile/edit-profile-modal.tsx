@@ -1,3 +1,5 @@
+// components/profile/edit-profile-modal.tsx
+// Komponen modal dialog untuk mengubah informasi profil pengguna (seperti nama lengkap).
 import React from 'react';
 import {
   View,
@@ -11,6 +13,7 @@ import {
 import { X } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 
+// Properti input untuk komponen modal edit profil
 interface EditProfileModalProps {
   visible: boolean;
   editName: string;
@@ -41,6 +44,7 @@ export function EditProfileModal({
     >
       <View style={styles.modalOverlay}>
         <View style={styles.editModalContainer}>
+          {/* Header Modal Edit Profil */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Edit Profil</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeModalBtn}>

@@ -1,3 +1,5 @@
+// app/(tabs)/profile.tsx
+// Halaman Profil Pengguna: menampilkan kartu profil, upload avatar, edit info, akses modal Garasi Kendaraan, pengaturan, CS, dan tombol logout.
 import React, { useState } from 'react';
 import {
   View,
@@ -43,21 +45,22 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, refreshUser } = useAuth();
 
-  // Avatar state (defaults to user.profile_image if available)
+  // State URI foto avatar pengguna (menggunakan foto yang tersimpan jika ada)
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.profile_image || null);
 
-  // Edit Profile Modal State
+  // State visibilitas modal edit profil
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Garage Modal State (synchronized with Web Frontend UserVehiclesTab)
+  // State modal garasi dan data kendaraan milik pengguna (sinkron dengan web frontend)
   const [isGarageModalVisible, setIsGarageModalVisible] = useState(false);
   const [garageVehicles, setGarageVehicles] = useState<Vehicle[]>([]);
   const [garageBookings, setGarageBookings] = useState<Booking[]>([]);
   const [isGarageLoading, setIsGarageLoading] = useState(false);
 
+  // Membuka modal garasi dan memuat armada serta riwayat booking pengguna
   const handleOpenGarage = async () => {
     if (!user) {
       Alert.alert('Perhatian', 'Silakan login terlebih dahulu.');
@@ -143,7 +146,7 @@ export default function ProfileScreen() {
             console.log('Error saving profile image to DB:', err);
           }
         }
-        Alert.alert('Berhasil! 🎉', 'Foto profil berhasil diperbarui dari Galeri.');
+        Alert.alert('Berhasil!', 'Foto profil berhasil diperbarui dari Galeri.');
       }
     } catch (error: any) {
       Alert.alert('Gagal Membuka Galeri', error.message || 'Terjadi kesalahan saat membuka galeri foto.');
@@ -177,7 +180,7 @@ export default function ProfileScreen() {
             console.log('Error saving camera profile image to DB:', err);
           }
         }
-        Alert.alert('Berhasil! 🎉', 'Foto profil berhasil diambil dari Kamera.');
+        Alert.alert('Berhasil!', 'Foto profil berhasil diambil dari Kamera.');
       }
     } catch (error: any) {
       Alert.alert('Gagal Mengambil Foto', error.message || 'Terjadi kesalahan saat membuka kamera.');
@@ -191,11 +194,11 @@ export default function ProfileScreen() {
       'Pilih metode untuk mengubah foto profil Anda:',
       [
         {
-          text: '🖼️ Pilih dari Galeri',
+          text: 'Pilih dari Galeri',
           onPress: handlePickImageFromGallery,
         },
         {
-          text: '📷 Ambil dari Kamera',
+          text: 'Ambil dari Kamera',
           onPress: handleTakePhotoFromCamera,
         },
         {
@@ -282,7 +285,13 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.headerIconButton}
               activeOpacity={0.7}
-              onPress={() => Alert.alert('Notifikasi', 'Tidak ada notifikasi baru saat ini.')}
+              onPress={() =>
+                Alert.alert(
+                  'Segera Hadir!',
+                  'Fitur notifikasi sedang disiapkan dan akan hadir pada pembaruan aplikasi berikutnya.',
+                  [{ text: 'Mengerti', style: 'default' }]
+                )
+              }
             >
               <Bell size={20} color="#FFFFFF" />
               <View style={styles.notificationDot} />

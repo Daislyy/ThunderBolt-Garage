@@ -1,3 +1,5 @@
+// components/home/category-section.tsx
+// Komponen beranda untuk menampilkan ikon kategori dan pintasan layanan servis kendaraan.
 import React from 'react';
 import {
   View,
@@ -16,19 +18,22 @@ import { colors } from '../../constants/colors';
 import { Service } from '../../services/serviceService';
 import { styles } from '../../styles/home.styles';
 
+// Struktur data satu item kategori layanan
 export interface CategoryItem {
   id: string;
   name: string;
   icon: React.ComponentType<any>;
 }
 
+// Kategori default dengan ikon masing-masing
 export const DEFAULT_CATEGORIES: CategoryItem[] = [
-  { id: 'repairs', name: 'Repairs', icon: Wrench },
-  { id: 'parts', name: 'Spare Parts', icon: Disc },
-  { id: 'services', name: 'Services', icon: ShieldCheck },
-  { id: 'oil', name: 'Oil & Fluids', icon: Droplet },
+  { id: 'repairs', name: 'Perbaikan', icon: Wrench },
+  { id: 'parts', name: 'Suku Cadang', icon: Disc },
+  { id: 'services', name: 'Servis', icon: ShieldCheck },
+  { id: 'oil', name: 'Oli & Cairan', icon: Droplet },
 ];
 
+// Fungsi penyederhana nama kategori agar proporsional di layar HP
 function getShortCategoryName(name: string): string {
   const lower = name.toLowerCase();
   if (lower.includes('oli') || lower.includes('fluids')) return 'Ganti Oli';

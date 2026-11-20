@@ -1,3 +1,5 @@
+// components/profile/garage-modal.tsx
+// Komponen modal lembar bawah (bottom sheet) untuk mengelola garasi kendaraan pengguna, melihat status servis tiap armada, mendaftarkan kendaraan baru, dan menghapus kendaraan.
 import React, { useState } from 'react';
 import {
   View,
@@ -26,6 +28,7 @@ import { colors } from '../../constants/colors';
 import { Vehicle } from '../../services/vehicleService';
 import { Booking } from '../../services/bookingService';
 
+// Properti input untuk komponen modal garasi
 interface GarageModalProps {
   visible: boolean;
   vehicles: Vehicle[];
@@ -53,16 +56,18 @@ export function GarageModal({
   onAddVehicle,
   onDeleteVehicle,
 }: GarageModalProps) {
+  // State untuk mengontrol tampilan form tambah kendaraan vs daftar kendaraan
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form states
+  // State nilai input form kendaraan baru
   const [brand, setBrand] = useState('Honda');
   const [model, setModel] = useState('');
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [plate, setPlate] = useState('');
   const [transmission, setTransmission] = useState<'Matic (CVT)' | 'Manual'>('Matic (CVT)');
 
+  // Handler validasi dan penyimpanan kendaraan baru ke server
   const handleSave = async () => {
     if (!brand.trim() || !model.trim() || !plate.trim()) {
       Alert.alert('Peringatan', 'Merk, tipe model, dan plat nomor kendaraan wajib diisi.');
@@ -79,11 +84,11 @@ export function GarageModal({
         transmission,
       });
 
-      // Reset
+      // Reset form setelah sukses
       setModel('');
       setPlate('');
       setIsAdding(false);
-      Alert.alert('Sukses! 🚗', 'Kendaraan baru berhasil didaftarkan ke garasi.');
+      Alert.alert('Sukses!', 'Kendaraan baru berhasil didaftarkan ke garasi.');
     } catch (err: any) {
       Alert.alert('Gagal', err.message || 'Gagal menambahkan kendaraan.');
     } finally {
@@ -95,7 +100,7 @@ export function GarageModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          {/* Header */}
+          {/* Header Modal Garasi */}
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Garasi &amp; Kendaraan Saya</Text>
@@ -107,7 +112,7 @@ export function GarageModal({
           </View>
 
           {isAdding ? (
-            /* Add Vehicle Form */
+            /* Formulir Pendaftaran Kendaraan Baru */
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               <Text style={styles.formTitle}>Tambah Kendaraan Baru</Text>
 
@@ -193,7 +198,7 @@ export function GarageModal({
               </View>
             </ScrollView>
           ) : (
-            /* Vehicle List */
+            /* Daftar Seluruh Kendaraan di Garasi */
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
               {isLoading ? (
                 <View style={styles.centerLoading}>
@@ -211,11 +216,13 @@ export function GarageModal({
               ) : (
                 <View style={{ gap: 12 }}>
                   {vehicles.map((v, idx) => {
+                    // Deteksi apakah kendaraan adalah sepeda motor atau mobil untuk ikon
                     const isMotor = ['honda', 'yamaha', 'kawasaki', 'suzuki', 'beat', 'vario', 'nmax', 'scoopy', 'aerox', 'pcx'].some(
                       (m) => v.brand.toLowerCase().includes(m) || v.model.toLowerCase().includes(m)
                     );
                     const IconComponent = isMotor ? Bike : Car;
 
+                    // Periksa apakah kendaraan sedang menjalani proses servis aktif
                     const activeBooking = bookings.find(
                       (b) =>
                         (b.vehicle_id === v.id ||
@@ -226,32 +233,48 @@ export function GarageModal({
 
                     return (
                       <View key={`garage-v-${v.id ?? v.license_plate ?? idx}`} style={styles.vehicleItemCard}>
-                        <View style={styles.vehicleTopRow}>
+                        {/* Header Kartu: Ikon, Info Utama, dan Status Badge */}
+                        <View style={styles.vehicleHeaderRow}>
                           <View style={styles.vehicleIconCircle}>
-                            <IconComponent size={22} color={colors.primary} />
+                            <IconComponent size={20} color={colors.primary} />
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.vehicleItemTitle}>
-                              {v.brand} {v.model} ({v.year})
+                          <View style={styles.vehicleMainInfo}>
+                            <Text style={styles.vehicleItemTitle} numberOfLines={1}>
+                              {v.brand} {v.model}
                             </Text>
-                            <Text style={styles.vehicleItemPlate}>
-                              Plat: {v.license_plate} {v.transmission ? `• ${v.transmission}` : ''}
-                            </Text>
+                            <Text style={styles.vehicleItemYear}>{v.year}</Text>
                           </View>
 
                           {activeBooking ? (
                             <View style={styles.inServiceBadge}>
-                              <AlertCircle size={12} color="#C2410C" />
-                              <Text style={styles.inServiceText}>{activeBooking.status}</Text>
+                              <AlertCircle size={11} color="#C2410C" />
+                              <Text style={styles.inServiceText} numberOfLines={1}>
+                                {activeBooking.status}
+                              </Text>
                             </View>
                           ) : (
                             <View style={styles.readyBadge}>
-                              <CheckCircle2 size={12} color="#15803D" />
+                              <CheckCircle2 size={11} color="#15803D" />
                               <Text style={styles.readyText}>Siap Jalan</Text>
                             </View>
                           )}
                         </View>
 
+                        {/* Detail Spesifikasi: Plat Nomor & Transmisi */}
+                        <View style={styles.specsRow}>
+                          <View style={styles.specChip}>
+                            <Text style={styles.specChipLabel}>Plat:</Text>
+                            <Text style={styles.specChipValue}>{v.license_plate}</Text>
+                          </View>
+                          {v.transmission ? (
+                            <View style={styles.specChip}>
+                              <Text style={styles.specChipLabel}>Transmisi:</Text>
+                              <Text style={styles.specChipValue}>{v.transmission}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        {/* Baris Tombol Aksi */}
                         <View style={styles.cardActionsRow}>
                           <TouchableOpacity
                             style={[
@@ -262,14 +285,14 @@ export function GarageModal({
                             disabled={Boolean(activeBooking)}
                             onPress={() => onBookServiceForVehicle(v)}
                           >
-                            <Wrench size={14} color={activeBooking ? '#94A3B8' : '#FFFFFF'} />
+                            <Wrench size={13} color={activeBooking ? '#94A3B8' : '#FFFFFF'} />
                             <Text
                               style={[
                                 styles.serviceThisVehicleBtnText,
                                 Boolean(activeBooking) && { color: '#94A3B8' },
                               ]}
                             >
-                              {activeBooking ? 'Sedang Dalam Servis' : 'Servis Kendaraan Ini'}
+                              {activeBooking ? 'Sedang Diservis' : 'Servis Kendaraan Ini'}
                             </Text>
                           </TouchableOpacity>
 
@@ -299,7 +322,7 @@ export function GarageModal({
                                 );
                               }}
                             >
-                              <Trash2 size={16} color="#EF4444" />
+                              <Trash2 size={15} color="#EF4444" />
                             </TouchableOpacity>
                           )}
                         </View>
@@ -400,84 +423,127 @@ const styles = StyleSheet.create({
   },
 
   vehicleItemCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  vehicleTopRow: {
+  vehicleHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    marginBottom: 10,
   },
   vehicleIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFF1EC',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFF7ED',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  vehicleMainInfo: {
+    flex: 1,
+  },
   vehicleItemTitle: {
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.headingDark,
   },
-  vehicleItemPlate: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
+  vehicleItemYear: {
+    fontSize: 11.5,
+    color: '#94A3B8',
+    marginTop: 1,
   },
   readyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   readyText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#15803D',
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#16A34A',
   },
   inServiceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFEDD5',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   inServiceText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 10.5,
+    fontWeight: '700',
     color: '#C2410C',
   },
+  specsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  specChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  specChipLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  specChipValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
   cardActionsRow: {
-    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#F8FAFC',
   },
   serviceThisVehicleBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     backgroundColor: colors.primary,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
   serviceThisVehicleBtnDisabled: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
   },
   serviceThisVehicleBtnText: {
     color: '#FFFFFF',
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
   },
 

@@ -1,43 +1,43 @@
 // constants/colors.ts
-// ThunderBolt Garage — single color theme (oren)
+// Skema palet warna terpusat tema oranye khas ThunderBolt Garage untuk konsistensi seluruh UI mobile.
 
 export const colors = {
-  // Oren — inti warna aplikasi
-  primary: '#FF6A00',        // Oren utama — CTA, ikon aktif, aksen
-  primaryDark: '#C9500A',    // Oren tua — hero header, pressed state
-  primaryDarker: '#7A3204',  // Oren nyaris coklat — teks kontras tinggi, status "selesai"
-  primaryLight: '#FF9640',   // Oren muda — aksen sekunder, dot aktif
-  primarySoft: '#FFDCB8',    // Oren pastel — background pill/card kecil
-  primaryTint: '#FFF1E4',    // Oren sangat muda — background halaman
+  // Palet Oranye Utama — Identitas brand ThunderBolt Garage
+  primary: '#FF6A00',        // Oranye utama — Tombol aksi (CTA), ikon aktif, dan aksen penting
+  primaryDark: '#C9500A',    // Oranye tua — Header atas, state ketika elemen ditekan (pressed)
+  primaryDarker: '#7A3204',  // Oranye sangat gelap / kecokelatan — Teks kontras tinggi dan aksen solid
+  primaryLight: '#FF9640',   // Oranye muda — Aksen sekunder dan indikator dot aktif
+  primarySoft: '#FFDCB8',    // Oranye pastel — Latar belakang badge / pill / kartu kecil
+  primaryTint: '#FFF1E4',    // Oranye sangat lembut — Latar belakang halaman
 
-  surface: '#FFFFFF',
-  card: '#FFEDDC',
+  surface: '#FFFFFF',        // Warna permukaan kartu putih bersih
+  card: '#FFEDDC',           // Warna kartu bernuansa hangat
 
-  textPrimary: '#241207',
-  textSecondary: '#8A6A50',
-  textMuted: '#B79376',
-  textOnPrimary: '#FFFFFF',
+  textPrimary: '#241207',    // Warna teks utama (hitam pekat bernuansa hangat)
+  textSecondary: '#8A6A50',  // Warna teks sekunder / deskripsi singkat
+  textMuted: '#B79376',      // Warna teks pudar / placeholder
+  textOnPrimary: '#FFFFFF',  // Warna teks putih di atas tombol oranye
 
-  background: '#FFF8F2',
+  background: '#FFF8F2',     // Latar belakang umum aplikasi
 
-  success: '#7A3204',
-  error: '#C9500A',
+  success: '#7A3204',        // Warna indikator sukses
+  error: '#C9500A',          // Warna indikator error / gagal
 
-  // Status booking
-  statusPending: '#B79376',      // oren muted = menunggu
-  statusProcess: '#FF6A00',      // oren penuh = sedang diproses
-  statusPayment: '#EA580C',      // oren terang = menunggu pembayaran
-  statusFinish: '#7A3204',       // oren gelap = selesai
-  statusCancelled: '#DC2626',    // merah = dibatalkan
+  // Palet Warna Status Alur Booking
+  statusPending: '#B79376',      // Status Menunggu konfirmasi
+  statusProcess: '#FF6A00',      // Status Sedang Dikerjakan / Diproses
+  statusPayment: '#EA580C',      // Status Menunggu Pembayaran
+  statusFinish: '#7A3204',       // Status Selesai
+  statusCancelled: '#DC2626',    // Status Dibatalkan
 
-  overlay: 'rgba(36, 18, 7, 0.45)',
+  overlay: 'rgba(36, 18, 7, 0.45)', // Latar belakang redup (backdrop) saat modal terbuka
 
-  // UI Mockup specific colors
+  // Palet Khusus Komponen Beranda & Tampilan
   categoryBg: '#FFF1EC',
   bannerBg: '#F8F9FA',
   headingDark: '#1E293B',
   subtextGray: '#64748B',
-  ratingStar: '#FF9500',
+  ratingStar: '#FF9500',         // Warna bintang ulasan / review
   borderOrange: 'rgba(255, 106, 0, 0.35)',
 } as const;
 

@@ -1,6 +1,8 @@
 // services/vehicleService.ts
+// Modul layanan pengelolaan data kendaraan pelanggan (garasi kendaraan, penambahan, pengubahan, dan penghapusan kendaraan).
 import { apiRequest } from './api';
 
+// Struktur representasi entitas data kendaraan pengguna
 export interface Vehicle {
   id: number;
   user_id: number;
@@ -12,11 +14,12 @@ export interface Vehicle {
   image: string | null;
   created_at?: string;
   updated_at?: string;
-  // Joined fields
+  // Field gabungan (joined) dari relasi pemilik kendaraan
   owner_name?: string;
   owner_email?: string;
 }
 
+// Struktur data masukan ketika mendaftarkan kendaraan baru ke sistem
 export interface CreateVehicleData {
   user_id: number;
   brand: string;
@@ -28,6 +31,9 @@ export interface CreateVehicleData {
 }
 
 export const vehicleService = {
+  /**
+   * Mengambil daftar seluruh kendaraan milik pengguna (garasi) berdasarkan ID user dan email.
+   */
   async getVehiclesByUser(userId: number, email?: string): Promise<Vehicle[]> {
     const endpoint = email
       ? `/vehicles/user/${userId}?email=${encodeURIComponent(email.trim())}`
@@ -36,13 +42,19 @@ export const vehicleService = {
     return res.data || [];
   },
 
+  /**
+   * Mengambil detail satu kendaraan berdasarkan ID.
+   */
   async getVehicleById(id: number | string): Promise<Vehicle | null> {
     const res = await apiRequest<Vehicle>(`/vehicles/${id}`);
     return res.data || null;
   },
 
+  /**
+   * Mendaftarkan kendaraan baru ke garasi pengguna.
+   * Melakukan sanitasi transmisi menjadi 'manual' atau 'automatic' sesuai aturan database Postgres Supabase.
+   */
   async createVehicle(data: CreateVehicleData): Promise<Vehicle> {
-    // Sanitize transmission to meet Postgres CHECK constraint ('manual' | 'automatic')
     let cleanTransmission = 'automatic';
     if (data.transmission) {
       const t = data.transmission.toLowerCase();
@@ -62,6 +74,9 @@ export const vehicleService = {
     return res.data!;
   },
 
+  /**
+   * Memperbarui informasi data kendaraan yang sudah terdaftar.
+   */
   async updateVehicle(id: number | string, data: Partial<CreateVehicleData>): Promise<boolean> {
     const payload = { ...data };
     if (payload.license_plate) {
@@ -79,6 +94,9 @@ export const vehicleService = {
     return res.success;
   },
 
+  /**
+   * Menghapus kendaraan dari daftar garasi pengguna.
+   */
   async deleteVehicle(idOrPlate: number | string): Promise<boolean> {
     const res = await apiRequest(`/vehicles/${idOrPlate}`, { method: 'DELETE' });
     return res.success;

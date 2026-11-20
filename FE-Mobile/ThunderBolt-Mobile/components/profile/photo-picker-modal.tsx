@@ -1,3 +1,5 @@
+// components/profile/photo-picker-modal.tsx
+// Komponen modal pemilihan sumber foto profil (Kamera langsung atau Galeri foto perangkat).
 import React from 'react';
 import {
   View,
@@ -9,6 +11,7 @@ import {
 import { Camera, Image as ImageIcon, X } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 
+// Properti input untuk modal pemilih foto
 interface PhotoPickerModalProps {
   visible: boolean;
   onClose: () => void;
@@ -29,12 +32,14 @@ export function PhotoPickerModal({
       animationType="slide"
       onRequestClose={onClose}
     >
+      {/* Overlay latar belakang redup */}
       <TouchableOpacity
         style={styles.pickerOverlay}
         activeOpacity={1}
         onPress={onClose}
       >
         <TouchableOpacity style={styles.pickerSheet} activeOpacity={1}>
+          {/* Header Lembar Modal */}
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Ubah Foto Profil</Text>
             <TouchableOpacity onPress={onClose} style={styles.closePickerBtn}>
@@ -42,7 +47,9 @@ export function PhotoPickerModal({
             </TouchableOpacity>
           </View>
 
+          {/* Opsi Pilihan: Kamera vs Galeri */}
           <View style={styles.pickerOptionsRow}>
+            {/* Opsi Ambil Foto dari Kamera */}
             <TouchableOpacity
               style={styles.pickerOptionCard}
               activeOpacity={0.8}

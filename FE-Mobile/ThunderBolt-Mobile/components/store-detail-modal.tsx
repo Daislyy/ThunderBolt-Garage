@@ -1,3 +1,5 @@
+// components/store-detail-modal.tsx
+// Komponen modal lembar detail cabang bengkel (lokasi, jam buka, kontak, rating, dan paket servis yang tersedia di cabang tersebut).
 import React from 'react';
 import {
   View,
@@ -24,6 +26,7 @@ import { colors } from '../constants/colors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// Struktur data layanan yang disediakan di cabang
 export interface BranchService {
   id: string;
   name: string;
@@ -33,6 +36,7 @@ export interface BranchService {
   popular?: boolean;
 }
 
+// Struktur data informasi lengkap cabang bengkel
 export interface StoreBranch {
   id: string;
   name: string;

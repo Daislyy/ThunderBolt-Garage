@@ -1,3 +1,5 @@
+// app/booking/[id].tsx
+// Halaman detail pesanan booking servis: pelacakan status pengerjaan (5 tahap), rincian suku cadang, pembayaran tunai/Midtrans Snap, cetak/lihat resi digital, pembatalan, dan pemberian rating ulasan.
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -42,7 +44,7 @@ import { paymentService } from '../../services/paymentService';
 import { ratingService, Rating } from '../../services/ratingService';
 
 // ---------------------------------------------------------------------------
-// Types & progress stage mapping
+// Tipe & Pemetaan 5 Tahap Progres Servis (Check-in -> Diagnosa -> Pengerjaan -> Pembayaran -> Selesai)
 // ---------------------------------------------------------------------------
 
 type Stage = 'checkin' | 'diagnosa' | 'pengerjaan' | 'pembayaran' | 'selesai';
@@ -120,10 +122,16 @@ export default function BookingDetailScreen() {
       setPartsTotal(sparepartsRes.total_price || 0);
 
       const foundRating = (userRatings || []).find(
-        (r) => Number(r.booking_id) === Number(id)
+        (r) =>
+          Number(r.booking_id) === Number(id) ||
+          (bookingData?.booking_code && r.booking_code === bookingData.booking_code)
       );
       if (foundRating) {
         setExistingRating(foundRating);
+      } else if (bookingData?.booking_code) {
+        // Fallback cek rating berdasarkan kode booking
+        const matchByCode = await ratingService.getRatingByBooking(bookingData.booking_code, user?.id);
+        if (matchByCode) setExistingRating(matchByCode);
       }
     } catch (err: any) {
       setError(err.message || 'Gagal memuat detail booking');
@@ -213,7 +221,7 @@ export default function BookingDetailScreen() {
             setIsProcessingPayment(true);
             try {
               await paymentService.recordCashPayment(booking.id, grandTotal, booking.booking_code);
-              Alert.alert('Berhasil! 🎉', 'Permintaan pembayaran cash telah dikirim ke admin bengkel. Silakan bayar di kasir saat mengambil kendaraan.');
+              Alert.alert('Berhasil!', 'Permintaan pembayaran cash telah dikirim ke admin bengkel. Silakan bayar di kasir saat mengambil kendaraan.');
               await fetchDetail();
             } catch (err: any) {
               Alert.alert('Gagal', err.message || 'Gagal memproses pembayaran cash.');
@@ -246,6 +254,12 @@ export default function BookingDetailScreen() {
       });
 
       if (res.redirect_url) {
+        // Catat pembayaran lokal agar user langsung terfasilitasi riwayat bayar
+        await paymentService.markBookingPaidLocally(booking.id, 'midtrans');
+        if (booking.booking_code) {
+          await paymentService.markBookingPaidLocally(booking.booking_code, 'midtrans');
+        }
+
         await WebBrowser.openBrowserAsync(res.redirect_url);
         await fetchDetail();
       } else {
@@ -300,7 +314,7 @@ export default function BookingDetailScreen() {
       });
       setExistingRating(created);
       setIsRatingModalOpen(false);
-      Alert.alert('Terima Kasih! ⭐', 'Penilaian dan ulasan Anda telah tersimpan dan sangat berarti bagi kami.');
+      Alert.alert('Terima Kasih!', 'Penilaian dan ulasan Anda telah tersimpan dan sangat berarti bagi kami.');
     } catch (err: any) {
       Alert.alert('Gagal', err.message || 'Gagal mengirimkan ulasan.');
     } finally {
@@ -337,10 +351,10 @@ export default function BookingDetailScreen() {
               isFinished
                 ? { backgroundColor: '#ECFDF5', borderColor: '#D1FAE5' }
                 : isWaitingPayment
-                ? { backgroundColor: '#FFF7ED', borderColor: '#FFEDD5' }
-                : isCancelled
-                ? { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }
-                : { backgroundColor: colors.primarySoft, borderColor: colors.card },
+                  ? { backgroundColor: '#FFF7ED', borderColor: '#FFEDD5' }
+                  : isCancelled
+                    ? { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }
+                    : { backgroundColor: colors.primarySoft, borderColor: colors.card },
             ]}
           >
             <Text
@@ -349,10 +363,10 @@ export default function BookingDetailScreen() {
                 isFinished
                   ? { color: '#059669' }
                   : isWaitingPayment
-                  ? { color: '#EA580C' }
-                  : isCancelled
-                  ? { color: '#DC2626' }
-                  : { color: colors.primaryDark },
+                    ? { color: '#EA580C' }
+                    : isCancelled
+                      ? { color: '#DC2626' }
+                      : { color: colors.primaryDark },
               ]}
             >
               {booking.status}
@@ -553,15 +567,19 @@ export default function BookingDetailScreen() {
 
         {/* ---------- Review & Rating (Jika status Selesai) ---------- */}
         {isFinished && (
-          <View style={styles.ratingCard}>
+          <View style={[styles.ratingCard, !existingRating && styles.ratingCardHighlight]}>
             <View style={styles.ratingHeaderRow}>
-              <View style={styles.ratingIconCircle}>
+              <View style={[styles.ratingIconCircle, !existingRating && { backgroundColor: '#FEF3C7' }]}>
                 <Star size={20} color="#FF9500" fill="#FF9500" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.ratingCardTitle}>Ulasan &amp; Rating Layanan</Text>
+                <Text style={styles.ratingCardTitle}>
+                  {existingRating ? 'Ulasan & Rating Layanan' : 'Servis Selesai! Berikan Penilaian'}
+                </Text>
                 <Text style={styles.ratingCardSubtitle}>
-                  {existingRating ? 'Terima kasih atas penilaian Anda!' : 'Berikan feedback untuk teknisi kami'}
+                  {existingRating
+                    ? 'Terima kasih atas penilaian Anda!'
+                    : 'Pembayaran telah dikonfirmasi dan servis telah selesai. Yuk beri rating untuk teknisi kami!'}
                 </Text>
               </View>
             </View>
@@ -589,7 +607,7 @@ export default function BookingDetailScreen() {
                 activeOpacity={0.88}
                 onPress={() => setIsRatingModalOpen(true)}
               >
-                <Star size={16} color="#FFFFFF" />
+                <Star size={16} color="#FFFFFF" fill="#FFFFFF" />
                 <Text style={styles.openRatingBtnText}>Beri Ulasan Sekarang</Text>
               </TouchableOpacity>
             )}
@@ -1216,6 +1234,11 @@ const styles = StyleSheet.create({
     color: '#78350F',
     fontStyle: 'italic',
     lineHeight: 18,
+  },
+  ratingCardHighlight: {
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    backgroundColor: '#FFFBEB',
   },
   openRatingBtn: {
     flexDirection: 'row',

@@ -1,3 +1,5 @@
+// components/home/customer-reviews-section.tsx
+// Komponen beranda untuk menampilkan slider ulasan dan testimoni kepuasan pelanggan secara horizontal.
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,6 +14,7 @@ import { colors } from '../../constants/colors';
 import { styles, REVIEW_CARD_WIDTH } from '../../styles/home.styles';
 import { ratingService } from '../../services/ratingService';
 
+// Struktur data satu kartu review ulasan
 export interface CustomerReviewItem {
   id: string;
   userName: string;
@@ -22,6 +25,7 @@ export interface CustomerReviewItem {
   comment: string;
 }
 
+// Data review cadangan (fallback) jika database rating belum memiliki entri atau koneksi offline
 export const FALLBACK_REVIEWS: CustomerReviewItem[] = [
   {
     id: '1',
@@ -56,6 +60,7 @@ export function CustomerReviewsSection() {
   const router = useRouter();
   const [reviews, setReviews] = useState<CustomerReviewItem[]>(FALLBACK_REVIEWS);
 
+  // Mengambil daftar ulasan riil dari API backend saat komponen dimuat
   useEffect(() => {
     const fetchApiRatings = async () => {
       try {
@@ -73,7 +78,7 @@ export function CustomerReviewsSection() {
           setReviews([...mapped, ...FALLBACK_REVIEWS]);
         }
       } catch {
-        // Use fallback reviews
+        // Gunakan fallback ulasan jika fetch gagal
       }
     };
     fetchApiRatings();
@@ -85,7 +90,7 @@ export function CustomerReviewsSection() {
         <Text style={styles.sectionTitle}>Ulasan Pelanggan</Text>
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.push('/explore' as any)}
+          onPress={() => router.push('/reviews' as any)}
         >
           <Text style={styles.viewAllText}>Lihat semua</Text>
         </TouchableOpacity>

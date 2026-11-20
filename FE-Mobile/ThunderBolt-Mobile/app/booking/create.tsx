@@ -1,3 +1,5 @@
+// app/booking/create.tsx
+// Halaman formulir pendaftaran booking servis: pemilihan paket layanan servis, kendaraan (atau tambah kendaraan langsung), tanggal kedatangan, slot jam, serta catatan keluhan.
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -37,7 +39,7 @@ import { serviceService, Service } from '../../services/serviceService';
 import { vehicleService, Vehicle } from '../../services/vehicleService';
 import { bookingService, Booking } from '../../services/bookingService';
 
-// Time slots synchronized with Web Frontend
+// Pilihan slot jam kedatangan yang disinkronkan dengan jam operasional Web Frontend
 const TIME_SLOTS = [
   '08:30 WIB',
   '09:00 WIB',
@@ -193,7 +195,7 @@ export default function CreateBookingScreen() {
       setNewModel('');
       setNewYear(new Date().getFullYear().toString());
       setNewPlate('');
-      Alert.alert('Sukses! 🚗', 'Kendaraan berhasil didaftarkan.');
+      Alert.alert('Sukses!', 'Kendaraan berhasil didaftarkan.');
     } catch (error: any) {
       Alert.alert('Gagal Tambah Kendaraan', error.message || 'Terjadi kesalahan.');
     } finally {

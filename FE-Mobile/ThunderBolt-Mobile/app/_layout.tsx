@@ -46,6 +46,10 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="booking" options={{ headerShown: false }} />
+        <Stack.Screen name="active-bookings" options={{ headerShown: false }} />
+        <Stack.Screen name="service-history" options={{ headerShown: false }} />
+        <Stack.Screen name="reviews" options={{ headerShown: false }} />
+        <Stack.Screen name="promos" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
       <StatusBar style="auto" />

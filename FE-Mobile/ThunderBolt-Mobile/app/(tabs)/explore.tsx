@@ -1,3 +1,5 @@
+// app/(tabs)/explore.tsx
+// Halaman daftar pesanan/aktivitas servis (Tab Aktivitas Servis): memisahkan booking yang sedang aktif berjalan dan riwayat servis yang telah selesai/dibatalkan.
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -7,18 +9,20 @@ import { colors } from '../../constants/colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { bookingService, Booking } from '../../services/bookingService';
 
+// Status internal untuk penataan warna dan ikon UI
 type BookingStatus = 'pending' | 'process' | 'payment' | 'finish' | 'cancelled';
 
-// Map backend status to UI status
+// Memetakan status string dari database Supabase/backend ke status UI internal
 function mapStatus(backendStatus: string): BookingStatus {
   const s = (backendStatus || '').toLowerCase();
   if (s === 'selesai' || s === 'finish' || s === 'completed' || s === 'done') return 'finish';
   if (s === 'menunggu pembayaran' || s === 'payment' || s === 'menunggu konfirmasi') return 'payment';
   if (s === 'diproses' || s === 'process' || s === 'in_progress' || s === 'dikerjakan') return 'process';
   if (s === 'dibatalkan' || s === 'cancelled' || s === 'batal') return 'cancelled';
-  return 'pending'; // 'Menunggu' or anything else
+  return 'pending'; // 'Menunggu' atau status awal lainnya
 }
 
+// Label teks status ramah pengguna
 const STATUS_LABEL: Record<BookingStatus, string> = {
   pending: 'Menunggu',
   process: 'Diproses',
@@ -27,6 +31,7 @@ const STATUS_LABEL: Record<BookingStatus, string> = {
   cancelled: 'Dibatalkan',
 };
 
+// Penataan warna status
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending: colors.statusPending,
   process: colors.statusProcess,
@@ -35,6 +40,7 @@ const STATUS_COLOR: Record<BookingStatus, string> = {
   cancelled: colors.statusCancelled,
 };
 
+// Pemilihan ikon status yang sesuai
 const STATUS_ICON: Record<BookingStatus, React.ComponentType<any>> = {
   pending: Clock3,
   process: Loader2,
@@ -43,7 +49,7 @@ const STATUS_ICON: Record<BookingStatus, React.ComponentType<any>> = {
   cancelled: AlertCircle,
 };
 
-// Format date from ISO string to readable
+// Mengubah format tanggal ISO menjadi teks yang mudah dibaca (contoh: 18 Nov 2026)
 function formatDate(dateStr: string): string {
   try {
     const date = new Date(dateStr);

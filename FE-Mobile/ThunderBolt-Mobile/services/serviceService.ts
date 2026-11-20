@@ -1,6 +1,8 @@
 // services/serviceService.ts
+// Modul layanan katalog jenis jasa dan paket servis kendaraan di ThunderBolt Garage.
 import { apiRequest } from './api';
 
+// Struktur representasi entitas data layanan servis bengkel
 export interface Service {
   id: number;
   name: string;
@@ -11,6 +13,7 @@ export interface Service {
   updated_at?: string;
 }
 
+// Data katalog layanan default (fallback) yang diselaraskan dengan Web Frontend jika koneksi backend offline
 export const DEFAULT_GARAGE_SERVICES: Service[] = [
   {
     id: 1,
@@ -57,6 +60,9 @@ export const DEFAULT_GARAGE_SERVICES: Service[] = [
 ];
 
 export const serviceService = {
+  /**
+   * Mengambil seluruh daftar layanan servis dari backend dengan fallback ke data katalog standar.
+   */
   async getAllServices(): Promise<Service[]> {
     try {
       const res = await apiRequest<Service[]>('/services', { requiresAuth: false });
@@ -67,20 +73,24 @@ export const serviceService = {
           const match = DEFAULT_GARAGE_SERVICES.find(
             (d) => d.name.toLowerCase() === item.name.toLowerCase() || d.id === item.id
           );
+          const rawPrice = item.price !== undefined && item.price !== null ? Number(item.price) : undefined;
           return {
             ...item,
             duration: match?.duration || '45 - 60 Menit',
-            price: match?.price || (idx % 2 === 0 ? 120000 : 95000),
+            price: rawPrice || match?.price || (idx % 2 === 0 ? 120000 : 95000),
             description: item.description || match?.description || 'Pemeriksaan standar teknisi bengkel ThunderBolt.',
           };
         });
       }
     } catch {
-      // Offline fallback
+      // Menggunakan fallback data offline jika pemanggilan API gagal
     }
     return DEFAULT_GARAGE_SERVICES;
   },
 
+  /**
+   * Mengambil detail satu paket layanan servis berdasarkan ID.
+   */
   async getServiceById(id: number): Promise<Service | null> {
     try {
       const res = await apiRequest<Service>(`/services/${id}`, { requiresAuth: false });
@@ -88,14 +98,15 @@ export const serviceService = {
         const match = DEFAULT_GARAGE_SERVICES.find(
           (d) => d.name.toLowerCase() === res.data!.name.toLowerCase() || d.id === res.data!.id
         );
+        const rawPrice = res.data.price !== undefined && res.data.price !== null ? Number(res.data.price) : undefined;
         return {
           ...res.data,
           duration: match?.duration || '45 - 60 Menit',
-          price: match?.price || 100000,
+          price: rawPrice || match?.price || 100000,
         };
       }
     } catch {
-      // Offline fallback
+      // Menggunakan fallback data offline jika pemanggilan API gagal
     }
 
     const local = DEFAULT_GARAGE_SERVICES.find((s) => s.id === id);

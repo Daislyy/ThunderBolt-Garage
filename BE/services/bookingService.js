@@ -55,7 +55,7 @@ export const bookingService = {
       if (!error && data) {
         return data.map(mapBookingWithServicePrice);
       }
-    } catch {}
+    } catch { }
 
     const { data, error } = await db
       .from('bookings')
@@ -93,7 +93,7 @@ export const bookingService = {
       if (!error && data) {
         return data.map(mapBookingWithServicePrice);
       }
-    } catch {}
+    } catch { }
 
     const { data, error } = await buildQuery('id, name, description');
     if (error) throw new Error(error.message);
@@ -125,7 +125,7 @@ export const bookingService = {
       if (!error && data) {
         return mapBookingWithServicePrice(data);
       }
-    } catch {}
+    } catch { }
 
     const { data, error } = await buildQuery('id, name, description').maybeSingle();
     if (error) throw new Error(error.message);
@@ -151,7 +151,7 @@ export const bookingService = {
       notes
     } = bookingData;
     const booking_code = bookingData.booking_code || generateBookingCode();
-    
+
     // 1. Resolve valid user_id in Supabase users table
     let validUserId = null;
     if (isValidInt4(user_id)) {
@@ -243,13 +243,19 @@ export const bookingService = {
       }
     }
 
+    // Clean booking_time if it contains 'WIB' or other text
+    let cleanBookingTime = String(booking_time || '09:00').replace(/wib/gi, '').trim();
+    if (cleanBookingTime.length === 5) {
+      cleanBookingTime = `${cleanBookingTime}:00`;
+    }
+
     let insertPayload = {
       booking_code,
       user_id: validUserId,
       vehicle_id: validVehicleId,
       service_id: validServiceId,
       booking_date,
-      booking_time,
+      booking_time: cleanBookingTime,
       notes: notes || null,
       status: 'Menunggu',
       total_amount: resolvedServicePrice
@@ -258,15 +264,6 @@ export const bookingService = {
     let { data, error } = await db
       .from('bookings')
       .insert(insertPayload)
-      .select('id, booking_code, user_id, vehicle_id, service_id, status, booking_date, booking_time')
-      .single();
-
-    if (error && error.message?.includes('total_amount')) {
-      delete insertPayload.total_amount;
-      const res = await db.from('bookings').insert(insertPayload).select('id, booking_code, user_id, vehicle_id, service_id, status, booking_date, booking_time').single();
-      data = res.data;
-      error = res.error;
-    }
 
     if (error) throw new Error(error.message);
     return {
