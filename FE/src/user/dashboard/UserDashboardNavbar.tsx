@@ -24,9 +24,13 @@ export default function UserDashboardNavbar({
       style={{
         backgroundColor: '#ffffff',
         borderBottom: '1px solid #e2e8f0',
-        position: 'sticky',
+        position: 'fixed',
         top: 0,
-        zIndex: 40,
+        left: 0,
+        right: 0,
+        width: '100%',
+        zIndex: 100,
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
       }}
     >
       <div className="tb-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '4.25rem' }}>
