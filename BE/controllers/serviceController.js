@@ -24,12 +24,12 @@ export const serviceController = {
 
   async createService(req, res) {
     try {
-      const { name, description } = req.body;
+      const { name, description, price } = req.body;
       if (!name) {
         return res.status(400).json({ success: false, message: 'Service name is required' });
       }
 
-      const newService = await serviceService.createService({ name, description });
+      const newService = await serviceService.createService({ name, description, price });
       res.status(201).json({ success: true, message: 'Service created successfully', data: newService });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

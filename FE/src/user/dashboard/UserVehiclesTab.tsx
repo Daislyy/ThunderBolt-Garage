@@ -119,9 +119,17 @@ export default function UserVehiclesTab({
 
   useEffect(() => {
     loadData()
-    const handleUpdate = () => loadData()
+    // Debounce the event listener to prevent rapid re-renders
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const handleUpdate = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => loadData(), 300)
+    }
     window.addEventListener('tb_vehicles_updated', handleUpdate)
-    return () => window.removeEventListener('tb_vehicles_updated', handleUpdate)
+    return () => {
+      window.removeEventListener('tb_vehicles_updated', handleUpdate)
+      if (debounceTimer) clearTimeout(debounceTimer)
+    }
   }, [user.email, user.id])
 
   // Get active status specifically for this vehicle

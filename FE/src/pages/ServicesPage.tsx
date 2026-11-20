@@ -9,7 +9,7 @@ import {
 } from '../user/dashboard/serviceStorage'
 import type { GarageService } from '../user/dashboard/serviceStorage'
 
-const initialForm = { name: '', description: '' }
+const initialForm = { name: '', description: '', price: '100000' }
 
 export default function ServicesPage() {
   const [services, setServices] = useState<GarageService[]>([])
@@ -51,7 +51,11 @@ export default function ServicesPage() {
   const openModal = (s?: GarageService) => {
     if (s) {
       setEditingId(s.id)
-      setFormData({ name: s.name, description: s.description || '' })
+      setFormData({
+        name: s.name,
+        description: s.description || '',
+        price: String(s.price !== undefined && s.price !== null ? s.price : 100000),
+      })
     } else {
       setEditingId(null)
       setFormData(initialForm)
@@ -65,10 +69,15 @@ export default function ServicesPage() {
 
     setSubmitting(true)
     try {
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: Number(formData.price) || 0,
+      }
       if (editingId) {
-        await updateGarageService(editingId, formData)
+        await updateGarageService(editingId, payload)
       } else {
-        await addGarageService(formData)
+        await addGarageService(payload)
       }
       setIsModalOpen(false)
       await fetchServices()
@@ -272,6 +281,32 @@ export default function ServicesPage() {
                     placeholder="Contoh: Servis Berkala / Tune Up"
                     value={formData.name}
                     onChange={(e) => updateForm('name', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      color: '#64748b',
+                      marginBottom: '0.375rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    Estimasi Biaya / Harga (Rp) *
+                  </label>
+                  <input
+                    className="klesi-input"
+                    type="number"
+                    min="0"
+                    step="1000"
+                    required
+                    placeholder="Contoh: 100000"
+                    value={formData.price}
+                    onChange={(e) => updateForm('price', e.target.value)}
                   />
                 </div>
 

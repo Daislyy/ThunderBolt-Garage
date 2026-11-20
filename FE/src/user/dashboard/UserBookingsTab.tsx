@@ -13,6 +13,8 @@ import {
   getInitialVehiclesForUser,
   getBookingRating,
 } from './userStorage'
+import { fetchAllServices, getLocalServices } from './serviceStorage'
+import type { GarageService } from './serviceStorage'
 
 interface UserBookingsTabProps {
   user: CustomerUser
@@ -31,6 +33,13 @@ export default function UserBookingsTab({
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all')
   const [selectedPlate, setSelectedPlate] = useState<string>(filterVehiclePlate || 'all')
   const [selectedBooking, setSelectedBooking] = useState<UserBookingRecord | null>(null)
+  const [serviceCatalog, setServiceCatalog] = useState<GarageService[]>(() => getLocalServices())
+
+  useEffect(() => {
+    fetchAllServices().then((list) => {
+      if (list && list.length > 0) setServiceCatalog(list)
+    })
+  }, [])
 
   const storageKeyBookings = getUserStorageKey(user, 'bookings')
   const storageKeyVehicles = getUserStorageKey(user, 'vehicles')
@@ -426,23 +435,51 @@ export default function UserBookingsTab({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '0.6875rem', color: '#94a3b8', display: 'block' }}>Estimasi Biaya</span>
-                  <span style={{ fontSize: '1.0625rem', fontWeight: 800, color: '#0f172a' }}>
-                    Rp {Number(b.total_price || 150000).toLocaleString('id-ID')}
-                  </span>
-                </div>
+              {(() => {
+                const matchedSvc = serviceCatalog.find(
+                  (s) =>
+                    (b.service_id && Number(s.id) === Number(b.service_id)) ||
+                    (s.name && s.name.trim().toLowerCase() === String(b.service_name || '').trim().toLowerCase())
+                )
+                const resolvedSvcPrice = Number(
+                  b.service_price !== undefined && b.service_price !== null && Number(b.service_price) > 0
+                    ? b.service_price
+                    : (matchedSvc?.price !== undefined && matchedSvc?.price !== null && Number(matchedSvc.price) > 0
+                        ? matchedSvc.price
+                        : 100000)
+                )
+                const displayTotal = Number(
+                  b.total_price && Number(b.total_price) > resolvedSvcPrice
+                    ? b.total_price
+                    : resolvedSvcPrice
+                )
 
-                <button
-                  onClick={() => setSelectedBooking(b)}
-                  className="tb-btn-secondary"
-                  style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }}
-                >
-                  <span>Lihat Rincian</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#94a3b8', display: 'block' }}>Estimasi Biaya</span>
+                      <span style={{ fontSize: '1.0625rem', fontWeight: 800, color: '#0f172a' }}>
+                        Rp {displayTotal.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setSelectedBooking({
+                          ...b,
+                          service_price: resolvedSvcPrice,
+                          total_price: displayTotal,
+                        })
+                      }
+                      className="tb-btn-secondary"
+                      style={{ padding: '0.5rem 0.875rem', fontSize: '0.8125rem' }}
+                    >
+                      <span>Lihat Rincian</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
           ))}
         </div>

@@ -24,6 +24,8 @@ import {
   getBookingRating,
 } from './userStorage'
 import type { BookingSparepartItem, ServiceRatingRecord } from './userStorage'
+import { fetchAllServices, getLocalServices } from './serviceStorage'
+import type { GarageService } from './serviceStorage'
 import api from '../../api/axios'
 
 interface BookingDetailModalProps {
@@ -124,13 +126,37 @@ export default function BookingDetailModal({
     }
   }, [booking])
 
+  const [serviceCatalog, setServiceCatalog] = useState<GarageService[]>(() => getLocalServices())
+
+  useEffect(() => {
+    fetchAllServices().then((list) => {
+      if (list && list.length > 0) setServiceCatalog(list)
+    })
+  }, [])
+
   if (!booking) return null
+
+  const matchedService = serviceCatalog.find(
+    (s) =>
+      (booking.service_id && Number(s.id) === Number(booking.service_id)) ||
+      (s.name && s.name.trim().toLowerCase() === String(booking.service_name || '').trim().toLowerCase())
+  )
 
   const isPaidDone = booking.status === 'Selesai' || paymentSuccessData?.status === 'paid'
   const isPendingCash = !isPaidDone && (booking.status === 'Menunggu Pembayaran' || paymentSuccessData?.status === 'pending_cash')
   const partsTotal = parts.reduce((acc, curr) => acc + Number(curr.price) * (curr.quantity || 1), 0)
-  const servicePrice = Number(booking.service_price || 100000)
-  const grandTotal = Number(booking.total_price) || servicePrice + partsTotal
+  const servicePrice = Number(
+    booking.service_price !== undefined && booking.service_price !== null && Number(booking.service_price) > 0
+      ? booking.service_price
+      : (matchedService?.price !== undefined && matchedService?.price !== null && Number(matchedService.price) > 0
+          ? matchedService.price
+          : 100000)
+  )
+  const grandTotal = Number(
+    booking.total_price && Number(booking.total_price) > servicePrice
+      ? booking.total_price
+      : servicePrice + partsTotal
+  )
 
   const handlePayMidtrans = async () => {
     setIsProcessing(true)

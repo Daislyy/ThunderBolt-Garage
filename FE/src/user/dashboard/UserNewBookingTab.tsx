@@ -144,6 +144,7 @@ export default function UserNewBookingTab({
       const bookingCode = `TBG-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomDigits}`
 
       const matchedSvc = services.find((s) => s.name === form.serviceName)
+      const servicePrice = Number(matchedSvc?.price !== undefined && matchedSvc?.price !== null ? matchedSvc.price : 100000)
 
       const initialBooking: UserBookingRecord = {
         id: Date.now(),
@@ -159,10 +160,11 @@ export default function UserNewBookingTab({
         license_plate: chosenVehicle.license_plate,
         transmission: chosenVehicle.transmission,
         service_name: form.serviceName,
+        service_price: servicePrice,
         booking_date: form.bookingDate,
         booking_time: form.bookingTime,
         status: 'Menunggu',
-        total_price: 150000,
+        total_price: servicePrice,
         notes: form.notes,
         created_at: new Date().toISOString(),
       }
@@ -291,10 +293,19 @@ export default function UserNewBookingTab({
               >
                 {services.map((s) => (
                   <option key={s.id || s.name} value={s.name}>
-                    {s.name}
+                    {s.name} — Rp {Number(s.price !== undefined && s.price !== null ? s.price : 100000).toLocaleString('id-ID')}
                   </option>
                 ))}
               </select>
+              {form.serviceName && (() => {
+                const chosen = services.find((s) => s.name === form.serviceName)
+                if (!chosen) return null
+                return (
+                  <div style={{ marginTop: '0.375rem', fontSize: '0.75rem', color: '#ea580c', fontWeight: 700 }}>
+                    Estimasi Biaya Jasa: Rp {Number(chosen.price !== undefined && chosen.price !== null ? chosen.price : 100000).toLocaleString('id-ID')}
+                  </div>
+                )
+              })()}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

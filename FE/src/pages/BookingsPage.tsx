@@ -18,7 +18,7 @@ interface Booking {
   id: number; booking_code: string; user_id: number; vehicle_id: number; service_id: number
   customer_name: string; customer_email?: string
   vehicle_brand: string; vehicle_model: string; vehicle_year?: number; license_plate: string; transmission?: string | null
-  service_name: string; service_description?: string | null
+  service_name: string; service_description?: string | null; service_price?: number; total_price?: number
   booking_date: string; booking_time: string; notes: string | null; status: string
 }
 

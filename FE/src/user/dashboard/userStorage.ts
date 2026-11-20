@@ -29,6 +29,7 @@ export interface UserBookingRecord {
   transmission?: string
   service_name: string
   service_description?: string
+  service_price?: number
   booking_date: string
   booking_time: string
   status: 'Menunggu' | 'Diproses' | 'Menunggu Pembayaran' | 'Selesai' | 'Dibatalkan' | string
@@ -93,7 +94,7 @@ export function getUserStorageKey(user: CustomerUser, key: string): string {
 }
 
 // --- Vehicles Management ---
-export function syncVehicleToShared(vehicle: SharedVehicleRecord) {
+export function syncVehicleToShared(vehicle: SharedVehicleRecord, { silent = false } = {}) {
   try {
     const existing = getStorageJSON<SharedVehicleRecord[]>(SHARED_ADMIN_VEHICLES_KEY, [])
     const cleanPlate = vehicle.license_plate.trim().toUpperCase()
@@ -102,7 +103,11 @@ export function syncVehicleToShared(vehicle: SharedVehicleRecord) {
       ...existing.filter((v) => v.license_plate.trim().toUpperCase() !== cleanPlate),
     ]
     localStorage.setItem(SHARED_ADMIN_VEHICLES_KEY, JSON.stringify(updated))
-    window.dispatchEvent(new CustomEvent('tb_vehicles_updated', { detail: vehicle }))
+    // Only dispatch the event when explicitly requested (not during batch sync)
+    // This prevents an infinite loop: event → loadData → getCustomerVehicles → syncVehicleToShared → event …
+    if (!silent) {
+      window.dispatchEvent(new CustomEvent('tb_vehicles_updated', { detail: vehicle }))
+    }
   } catch {}
 }
 
@@ -150,7 +155,7 @@ export function getCustomerVehicles(user: CustomerUser): UserVehicle[] {
   const storageKey = getUserStorageKey(user, 'vehicles')
   const list = getStorageJSON<UserVehicle[]>(storageKey, [])
 
-  // Auto-sync customer vehicles into shared admin storage
+  // Auto-sync customer vehicles into shared admin storage (silent to avoid event loop)
   list.forEach((v) => {
     syncVehicleToShared({
       id: v.id,
@@ -162,7 +167,7 @@ export function getCustomerVehicles(user: CustomerUser): UserVehicle[] {
       transmission: v.transmission,
       owner_name: user.name,
       owner_email: user.email,
-    })
+    }, { silent: true })
   })
 
   // Also include any vehicle added for this user in shared storage
@@ -214,6 +219,8 @@ export async function syncBookingToAdmin(booking: UserBookingRecord): Promise<Us
         transmission: booking.transmission,
         service_id: Number(booking.service_id) || 1,
         service_name: booking.service_name,
+        service_price: booking.service_price,
+        total_amount: booking.total_price,
         booking_date: booking.booking_date,
         booking_time: booking.booking_time,
         booking_code: booking.booking_code,
@@ -226,6 +233,12 @@ export async function syncBookingToAdmin(booking: UserBookingRecord): Promise<Us
       finalBooking.id = res.data.data.id
       if (res.data.data.booking_code) {
         finalBooking.booking_code = res.data.data.booking_code
+      }
+      if (res.data.data.service_price) {
+        finalBooking.service_price = Number(res.data.data.service_price)
+      }
+      if (res.data.data.total_price) {
+        finalBooking.total_price = Number(res.data.data.total_price)
       }
     }
   } catch (err) {

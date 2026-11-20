@@ -89,13 +89,13 @@ export async function fetchAllServices(): Promise<GarageService[]> {
   try {
     const res = await api.get('/services')
     if (res.data?.success && Array.isArray(res.data.data)) {
-      const apiServices: GarageService[] = res.data.data.map((item: any, idx: number) => {
+      const apiServices: GarageService[] = res.data.data.map((item: any) => {
         return {
           id: item.id,
           name: item.name,
           description: item.description || 'Pemeriksaan standar teknisi bengkel ThunderBolt.',
-          duration: '45 - 60 Menit',
-          price: idx % 2 === 0 ? 120000 : 95000,
+          duration: item.duration || '45 - 60 Menit',
+          price: item.price !== undefined && item.price !== null ? Number(item.price) : 100000,
           created_at: item.created_at || new Date().toISOString(),
         }
       })
@@ -116,7 +116,7 @@ export async function addGarageService(data: { name: string; description: string
     name: data.name.trim(),
     description: data.description.trim() || 'Layanan servis berkala dan perawatan kendaraan.',
     duration: data.duration || '45 - 60 Menit',
-    price: data.price || 100000,
+    price: data.price !== undefined && data.price !== null ? Number(data.price) : 100000,
     created_at: new Date().toISOString(),
   }
 
@@ -128,6 +128,7 @@ export async function addGarageService(data: { name: string; description: string
     const res = await api.post('/services', {
       name: newService.name,
       description: newService.description,
+      price: newService.price,
     })
     if (res.data?.data?.id) {
       newService.id = res.data.data.id
@@ -140,13 +141,27 @@ export async function addGarageService(data: { name: string; description: string
   return newService
 }
 
-export async function updateGarageService(id: number, data: { name: string; description: string }): Promise<void> {
+export async function updateGarageService(id: number, data: { name: string; description: string; price?: number; duration?: string }): Promise<void> {
   const current = getLocalServices()
-  const updated = current.map((item) => (item.id === id ? { ...item, name: data.name.trim(), description: data.description.trim() } : item))
+  const updated = current.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          name: data.name.trim(),
+          description: data.description.trim(),
+          price: data.price !== undefined && data.price !== null ? Number(data.price) : item.price,
+          duration: data.duration || item.duration,
+        }
+      : item
+  )
   saveLocalServices(updated)
 
   try {
-    await api.put(`/services/${id}`, data)
+    await api.put(`/services/${id}`, {
+      name: data.name.trim(),
+      description: data.description.trim(),
+      price: data.price !== undefined && data.price !== null ? Number(data.price) : undefined,
+    })
   } catch {
     // Keep local version
   }

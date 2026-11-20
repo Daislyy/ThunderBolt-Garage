@@ -11,105 +11,126 @@ const isValidInt4 = (val) => {
   return !isNaN(n) && Number.isInteger(n) && n > 0 && n <= 2147483647;
 };
 
+const mapBookingWithServicePrice = (b) => {
+  const svcPrice = Number(
+    b.services?.price !== undefined && b.services?.price !== null
+      ? b.services.price
+      : (b.service_price || 100000)
+  );
+  const totalAmount = Number(b.total_amount || b.total_price) || svcPrice;
+
+  return {
+    ...b,
+    customer_name: b.users?.name,
+    customer_email: b.users?.email,
+    vehicle_brand: b.vehicles?.brand,
+    vehicle_model: b.vehicles?.model,
+    vehicle_year: b.vehicles?.year,
+    license_plate: b.vehicles?.license_plate,
+    transmission: b.vehicles?.transmission,
+    service_id: b.services?.id || b.service_id,
+    service_name: b.services?.name,
+    service_description: b.services?.description,
+    service_price: svcPrice,
+    total_price: totalAmount,
+    users: undefined,
+    vehicles: undefined,
+    services: undefined
+  };
+};
+
 export const bookingService = {
   async getAllBookings() {
+    try {
+      const { data, error } = await db
+        .from('bookings')
+        .select(`
+          *,
+          users(name, email),
+          vehicles(brand, model, year, license_plate, transmission),
+          services(id, name, description, price)
+        `)
+        .order('id', { ascending: false });
+
+      if (!error && data) {
+        return data.map(mapBookingWithServicePrice);
+      }
+    } catch {}
+
     const { data, error } = await db
       .from('bookings')
       .select(`
         *,
         users(name, email),
         vehicles(brand, model, year, license_plate, transmission),
-        services(name, description)
+        services(id, name, description)
       `)
       .order('id', { ascending: false });
 
     if (error) throw new Error(error.message);
-
-    return (data || []).map(b => ({
-      ...b,
-      customer_name: b.users?.name,
-      customer_email: b.users?.email,
-      vehicle_brand: b.vehicles?.brand,
-      vehicle_model: b.vehicles?.model,
-      vehicle_year: b.vehicles?.year,
-      license_plate: b.vehicles?.license_plate,
-      transmission: b.vehicles?.transmission,
-      service_name: b.services?.name,
-      service_description: b.services?.description,
-      users: undefined,
-      vehicles: undefined,
-      services: undefined
-    }));
+    return (data || []).map(mapBookingWithServicePrice);
   },
 
   async getBookingsByUserId(userId) {
-    let query = db
-      .from('bookings')
-      .select(`
-        *,
-        vehicles(brand, model, year, license_plate, transmission),
-        services(name, description)
-      `)
-      .order('id', { ascending: false });
+    const buildQuery = (svcSelect) => {
+      let q = db
+        .from('bookings')
+        .select(`
+          *,
+          vehicles(brand, model, year, license_plate, transmission),
+          services(${svcSelect})
+        `)
+        .order('id', { ascending: false });
 
-    if (isValidInt4(userId)) {
-      query = query.eq('user_id', Number(userId));
-    }
+      if (isValidInt4(userId)) {
+        q = q.eq('user_id', Number(userId));
+      }
+      return q;
+    };
 
-    const { data, error } = await query;
+    try {
+      const { data, error } = await buildQuery('id, name, description, price');
+      if (!error && data) {
+        return data.map(mapBookingWithServicePrice);
+      }
+    } catch {}
+
+    const { data, error } = await buildQuery('id, name, description');
     if (error) throw new Error(error.message);
-
-    return (data || []).map(b => ({
-      ...b,
-      vehicle_brand: b.vehicles?.brand,
-      vehicle_model: b.vehicles?.model,
-      vehicle_year: b.vehicles?.year,
-      license_plate: b.vehicles?.license_plate,
-      transmission: b.vehicles?.transmission,
-      service_name: b.services?.name,
-      service_description: b.services?.description,
-      vehicles: undefined,
-      services: undefined
-    }));
+    return (data || []).map(mapBookingWithServicePrice);
   },
 
   async getBookingById(idOrCode) {
-    let query = db
-      .from('bookings')
-      .select(`
-        *,
-        users(name, email),
-        vehicles(brand, model, year, license_plate, transmission),
-        services(name, description)
-      `);
+    const buildQuery = (svcSelect) => {
+      let q = db
+        .from('bookings')
+        .select(`
+          *,
+          users(name, email),
+          vehicles(brand, model, year, license_plate, transmission),
+          services(${svcSelect})
+        `);
 
-    const trimmed = String(idOrCode || '').trim();
-    if (isValidInt4(trimmed)) {
-      query = query.or(`id.eq.${Number(trimmed)},booking_code.eq.${trimmed}`);
-    } else {
-      query = query.eq('booking_code', trimmed);
-    }
+      const trimmed = String(idOrCode || '').trim();
+      if (isValidInt4(trimmed)) {
+        q = q.or(`id.eq.${Number(trimmed)},booking_code.eq.${trimmed}`);
+      } else {
+        q = q.eq('booking_code', trimmed);
+      }
+      return q;
+    };
 
-    const { data, error } = await query.maybeSingle();
+    try {
+      const { data, error } = await buildQuery('id, name, description, price').maybeSingle();
+      if (!error && data) {
+        return mapBookingWithServicePrice(data);
+      }
+    } catch {}
 
+    const { data, error } = await buildQuery('id, name, description').maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
-
-    return {
-      ...data,
-      customer_name: data.users?.name,
-      customer_email: data.users?.email,
-      vehicle_brand: data.vehicles?.brand,
-      vehicle_model: data.vehicles?.model,
-      vehicle_year: data.vehicles?.year,
-      license_plate: data.vehicles?.license_plate,
-      transmission: data.vehicles?.transmission,
-      service_name: data.services?.name,
-      service_description: data.services?.description,
-      users: undefined,
-      vehicles: undefined,
-      services: undefined
-    };
+    return mapBookingWithServicePrice(data);
   },
 
   async createBooking(bookingData) {
@@ -147,20 +168,47 @@ export const bookingService = {
       if (firstUser) validUserId = firstUser.id;
     }
 
-    // 2. Resolve valid service_id in Supabase services table
+    // 2. Resolve valid service_id & price in Supabase services table
     let validServiceId = null;
+    let resolvedServicePrice = Number(bookingData.service_price || 0);
+
     if (isValidInt4(service_id)) {
-      const { data: svcCheck } = await db.from('services').select('id').eq('id', Number(service_id)).maybeSingle();
-      if (svcCheck) validServiceId = svcCheck.id;
+      try {
+        const { data: svcCheck } = await db.from('services').select('id, name, price').eq('id', Number(service_id)).maybeSingle();
+        if (svcCheck) {
+          validServiceId = svcCheck.id;
+          if (!resolvedServicePrice && svcCheck.price) resolvedServicePrice = Number(svcCheck.price);
+        }
+      } catch {
+        const { data: svcCheck } = await db.from('services').select('id, name').eq('id', Number(service_id)).maybeSingle();
+        if (svcCheck) validServiceId = svcCheck.id;
+      }
     }
     if (!validServiceId && service_name) {
-      const { data: svcByName } = await db.from('services').select('id').ilike('name', `%${service_name.trim()}%`).limit(1).maybeSingle();
-      if (svcByName) validServiceId = svcByName.id;
+      try {
+        const { data: svcByName } = await db.from('services').select('id, name, price').ilike('name', `%${service_name.trim()}%`).limit(1).maybeSingle();
+        if (svcByName) {
+          validServiceId = svcByName.id;
+          if (!resolvedServicePrice && svcByName.price) resolvedServicePrice = Number(svcByName.price);
+        }
+      } catch {
+        const { data: svcByName } = await db.from('services').select('id, name').ilike('name', `%${service_name.trim()}%`).limit(1).maybeSingle();
+        if (svcByName) validServiceId = svcByName.id;
+      }
     }
     if (!validServiceId) {
-      const { data: firstSvc } = await db.from('services').select('id').order('id', { ascending: true }).limit(1).maybeSingle();
-      if (firstSvc) validServiceId = firstSvc.id;
+      try {
+        const { data: firstSvc } = await db.from('services').select('id, price').order('id', { ascending: true }).limit(1).maybeSingle();
+        if (firstSvc) {
+          validServiceId = firstSvc.id;
+          if (!resolvedServicePrice && firstSvc.price) resolvedServicePrice = Number(firstSvc.price);
+        }
+      } catch {
+        const { data: firstSvc } = await db.from('services').select('id').order('id', { ascending: true }).limit(1).maybeSingle();
+        if (firstSvc) validServiceId = firstSvc.id;
+      }
     }
+    if (!resolvedServicePrice) resolvedServicePrice = 100000;
 
     // 3. Resolve valid vehicle_id in Supabase vehicles table
     let validVehicleId = null;
@@ -195,20 +243,30 @@ export const bookingService = {
       }
     }
 
-    const { data, error } = await db
+    let insertPayload = {
+      booking_code,
+      user_id: validUserId,
+      vehicle_id: validVehicleId,
+      service_id: validServiceId,
+      booking_date,
+      booking_time,
+      notes: notes || null,
+      status: 'Menunggu',
+      total_amount: resolvedServicePrice
+    };
+
+    let { data, error } = await db
       .from('bookings')
-      .insert({
-        booking_code,
-        user_id: validUserId,
-        vehicle_id: validVehicleId,
-        service_id: validServiceId,
-        booking_date,
-        booking_time,
-        notes: notes || null,
-        status: 'Menunggu'
-      })
+      .insert(insertPayload)
       .select('id, booking_code, user_id, vehicle_id, service_id, status, booking_date, booking_time')
       .single();
+
+    if (error && error.message?.includes('total_amount')) {
+      delete insertPayload.total_amount;
+      const res = await db.from('bookings').insert(insertPayload).select('id, booking_code, user_id, vehicle_id, service_id, status, booking_date, booking_time').single();
+      data = res.data;
+      error = res.error;
+    }
 
     if (error) throw new Error(error.message);
     return {
@@ -218,6 +276,8 @@ export const bookingService = {
       user_id: data.user_id,
       vehicle_id: data.vehicle_id,
       service_id: data.service_id,
+      service_price: resolvedServicePrice,
+      total_price: resolvedServicePrice,
       status: 'Menunggu'
     };
   },
